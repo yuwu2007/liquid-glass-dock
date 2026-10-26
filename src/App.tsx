@@ -47,6 +47,10 @@ export default function App() {
   const [active, setActive] = useState(0)
   const [topic, setTopic] = useState<string>('all')
   const [bg, setBg] = useState<string>(BACKGROUNDS[0].key)
+  const [optics, setOptics] = useState<'auto' | 'force' | 'compat'>(() => {
+    const v = new URLSearchParams(location.search).get('optics')
+    return v === 'force' || v === 'compat' ? v : 'auto'
+  })
   const [dark, setDark] = useState(false)
   const itemRefs = useRef<(HTMLElement | null)[]>([])
 
@@ -55,6 +59,8 @@ export default function App() {
   }, [dark])
 
   const photo = BACKGROUNDS.find(b => b.key === bg) ?? BACKGROUNDS[0]
+  // 强制折射 = 不信 capability 硬挂 SVG 链（用来判断"是检测错了还是内核真不行"）
+  const lensProp: 'auto' | boolean = optics === 'force' ? true : optics === 'compat' ? false : 'auto'
 
   return (
     <div className="relative min-h-full">
@@ -110,7 +116,7 @@ export default function App() {
 
             {/* 一块大玻璃：不是为了导航，纯粹看通透度与边缘折射 */}
             <div className="px-4 pb-3">
-              <GlassPanel className="px-4 py-3.5">
+              <GlassPanel className="px-4 py-3.5" enableLens={lensProp}>
                 <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Liquid glass</p>
                 <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
                   通透度演示
@@ -137,7 +143,7 @@ export default function App() {
 
             {/* 底栏：玻璃材质 + 滑块（绝对定位在滚动容器之上） */}
             <div className="absolute inset-x-0 bottom-0 px-3 pb-3">
-              <DockGlassSurface>
+              <DockGlassSurface enableLens={lensProp}>
                 <div className="relative grid grid-cols-5">
                   <DockSlider activeIndex={active} getItem={i => itemRefs.current[i]} />
                   {TABS.map(({ label, Icon }, i) => (
@@ -173,6 +179,14 @@ export default function App() {
           >
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
+          <button
+            type="button"
+            onClick={() => setOptics(o => (o === 'auto' ? 'force' : o === 'force' ? 'compat' : 'auto'))}
+            aria-label="光学模式"
+            className="rounded-full bg-black/40 px-2 py-1 text-[0.58rem] text-white ring-1 ring-white/25 backdrop-blur"
+          >
+            {optics === 'auto' ? '自动' : optics === 'force' ? '强制' : '兼容'}
+          </button>
           {BACKGROUNDS.map(b => (
             <button
               key={b.key}
@@ -188,6 +202,14 @@ export default function App() {
 
         {/* 换背景：同一块玻璃，不同底衬 */}
         <div className="page-chrome flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setOptics(o => (o === 'auto' ? 'force' : o === 'force' ? 'compat' : 'auto'))}
+            className="rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-[0.72rem] text-neutral-700 backdrop-blur transition active:scale-95 dark:border-white/15 dark:bg-white/10 dark:text-white/80"
+            title="auto=按内核判断 / force=强制挂 SVG 折射链 / compat=只用兼容磨砂"
+          >
+            光学：{optics === 'auto' ? '自动' : optics === 'force' ? '强制折射' : '兼容磨砂'}
+          </button>
           <span className="text-[0.74rem] text-neutral-500">换背景看折射</span>
           {BACKGROUNDS.map(b => (
             <button

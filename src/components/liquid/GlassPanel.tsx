@@ -16,10 +16,12 @@ export default function GlassPanel({
   children,
   className = '',
   radius = 28,
+  enableLens = 'auto',
 }: {
   children: ReactNode
   className?: string
   radius?: number
+  enableLens?: 'auto' | boolean
 }) {
   return (
     <LiquidSurface
@@ -30,6 +32,7 @@ export default function GlassPanel({
       radius={radius}
       rootClassName="relative w-full"
       className={`w-full yx-color-edge overflow-hidden ${className}`.trim()}
+      enableLens={enableLens}
       profile={DOCK_TUNED_LOCAL_LENS_PROFILE}
       darkProfile={DOCK_DARK_LENS_PROFILE}
       style={{

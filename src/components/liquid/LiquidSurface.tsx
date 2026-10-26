@@ -323,6 +323,14 @@ export default function LiquidSurface({
     surfStyle.backdropFilter = unifiedGlass ? 'none' : scaleFilter
   }
 
+  // 兜底档（iOS / X5 / 内核不支持位移链）：inline 覆盖掉调用方传的 blur(3px)，
+  // 否则 CSS 里的加厚兜底会被 inline style 顶掉，看起来还是一层薄雾。
+  if (!lens.on) {
+    const fb = isDark ? 'blur(18px) saturate(160%) brightness(0.94)' : 'blur(16px) saturate(180%) brightness(1.04)'
+    surfStyle.WebkitBackdropFilter = fb
+    surfStyle.backdropFilter = fb
+  }
+
   // 窄提亮边线：画在玻璃之上；挂载判据与色环的滚动降级一致（rimActive），
   // static 环境滚动中同步卸下，避免 WebView 逐帧重采样掉帧。
   const lineFilter = rimActive && !unifiedGlass ? `url(#${idBase}-line-lens)` : ''

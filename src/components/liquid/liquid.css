@@ -166,3 +166,29 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.12),
     0 14px 40px rgba(0, 0, 0, 0.45);
 }
+
+/* 兼容档的"厚度"补充：没有位移链时，靠内阴影 + 边缘压暗 + 斜向镜面高光
+   模拟玻璃的厚度感，否则只靠 blur 会像一块磨砂塑料片。 */
+[data-liquid-surface][data-lens="off"] > .glass-dock::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+    radial-gradient(140% 120% at 50% 120%, rgba(0, 0, 0, 0.10), transparent 60%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    inset 0 6px 14px -8px rgba(255, 255, 255, 0.6),
+    inset 0 -8px 16px -10px rgba(0, 0, 0, 0.35);
+}
+.dark [data-liquid-surface][data-lens="off"] > .glass-dock::before {
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, 0.12), transparent 55%),
+    radial-gradient(140% 120% at 50% 120%, rgba(0, 0, 0, 0.35), transparent 60%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 6px 14px -8px rgba(255, 255, 255, 0.22),
+    inset 0 -8px 16px -10px rgba(0, 0, 0, 0.6);
+}
