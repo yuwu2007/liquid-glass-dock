@@ -153,7 +153,9 @@ export default function RefractionImage({
               <feImage href={maps.disp} x={0} y={0} width={w} height={h} preserveAspectRatio="none" result="lens" />
               <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="soft" />
               <feColorMatrix in="soft" type="saturate" values={String(saturation)} result="sat" />
-              <feDisplacementMap in="sat" in2="lens" scale={maps.scale} xChannelSelector="R" yChannelSelector="G" />
+              <feDisplacementMap in="sat" in2="lens" scale={maps.scale} xChannelSelector="R" yChannelSelector="G" result="bent" />
+              {/* 0.4px 微柔化：吃掉位移采样留下的"一层一层"横带，不影响轮廓 */}
+              <feGaussianBlur in="bent" stdDeviation="0.4" />
             </filter>
           </defs>
 
@@ -172,14 +174,13 @@ export default function RefractionImage({
         </svg>
       )}
 
-      {/* 只有一道细边 + 一层薄奶白，主体高光交给折射/高光贴图 */}
+      {/* 一层薄奶白；边缘高光全部交给高光贴图，不再叠加 CSS 亮线（避免"一层一层"） */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           borderRadius: radius,
           background: veil > 0 ? `rgba(255,255,255,${veil})` : undefined,
-          boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.35)',
         }}
       />
 
@@ -220,6 +221,10 @@ function buildLensMaps(
   const Ly = Math.sin(az)
   const shininess = 12
 
+  // 位移剖面先在 1D 上算好并**限斜率**：相邻像素的位移差一旦超过间距，
+  // 取样场就会折叠，同一行内容被重复抽出来——看起来就是"一条横线一条横线"。
+  const prof = buildProfile(bevel, depth, ior, TAPER)
+
   for (let y = 0; y < sh; y++) {
     for (let x = 0; x < sw; x++) {
       const cx = (x + 0.5) / SS - halfW
@@ -235,13 +240,10 @@ function buildLensMaps(
       // 凸面 squircle 剖面的斜率 → 表面倾角
       const slope = (u * u * u) / Math.pow(1 - u4, 0.75)
       const theta1 = Math.atan(slope)
-      const sinT2 = Math.sin(theta1) / ior
-      const theta2 = Math.asin(Math.min(1, Math.max(-1, sinT2)))
 
       const innerFade = smoothstep((bevel - dist) / TAPER)
       const outerFade = smoothstep(dist)
-      let mag = Math.tan(theta1 - theta2) * depth
-      mag *= innerFade * outerFade
+      const mag = sampleProfile(prof, dist, bevel)
 
       const eps = 1
       const gx = sdRoundRect(cx + eps, cy, halfW, halfH, r) - sdRoundRect(cx - eps, cy, halfW, halfH, r)
@@ -293,6 +295,10 @@ function buildLensMaps(
   }
   dctx.putImageData(dImg, 0, 0)
   sctx.putImageData(sImg, 0, 0)
+  // 高光贴图自身也柔化一下：亮线/暗带不再分层，过渡是连续的
+  sctx.filter = `blur(${Math.max(1, SS * 0.7)}px)`
+  sctx.drawImage(specCanvas, 0, 0)
+  sctx.filter = 'none'
 
   return { disp: dispCanvas.toDataURL(), spec: specCanvas.toDataURL(), scale: maxMag * 2 }
 }
@@ -300,6 +306,42 @@ function buildLensMaps(
 function smoothstep(t: number): number {
   const x = Math.min(1, Math.max(0, t))
   return x * x * (3 - 2 * x)
+}
+
+/**
+ * 1D 位移剖面（CSS px 分辨率）：凸面 squircle + 斯涅尔折射，两端羽化。
+ * 再做斜率限幅（≤0.9 px/px）：位移梯度大于 1 意味着取样场折叠，
+ * 同一段背景被重复抽取，视觉上就是一圈圈横带/重影。
+ */
+function buildProfile(bevel: number, depth: number, ior: number, taper: number): Float32Array {
+  const steps = Math.max(32, Math.ceil(bevel * 2))
+  const prof = new Float32Array(steps + 1)
+  for (let i = 0; i <= steps; i++) {
+    const dist = (i / steps) * bevel
+    const t = Math.max(dist / bevel, 0.02)
+    const u = 1 - t
+    const u4 = u * u * u * u
+    const slope = (u * u * u) / Math.pow(1 - u4, 0.75)
+    const theta1 = Math.atan(slope)
+    const sinT2 = Math.sin(theta1) / ior
+    const theta2 = Math.asin(Math.min(1, Math.max(-1, sinT2)))
+    prof[i] =
+      Math.tan(theta1 - theta2) * depth * smoothstep((bevel - dist) / taper) * smoothstep(dist)
+  }
+  let maxSlope = 0
+  for (let i = 1; i <= steps; i++) {
+    maxSlope = Math.max(maxSlope, Math.abs(prof[i] - prof[i - 1]) / (bevel / steps))
+  }
+  const cap = maxSlope > 0.9 ? 0.9 / maxSlope : 1
+  if (cap < 1) for (let i = 0; i <= steps; i++) prof[i] *= cap
+  return prof
+}
+
+function sampleProfile(prof: Float32Array, dist: number, bevel: number): number {
+  const pos = (dist / bevel) * (prof.length - 1)
+  const i = Math.min(prof.length - 2, Math.max(0, Math.floor(pos)))
+  const f = Math.min(1, Math.max(0, pos - i))
+  return prof[i] * (1 - f) + prof[i + 1] * f
 }
 
 function clamp(v: number): number {

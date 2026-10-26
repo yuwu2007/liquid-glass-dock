@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Bell, Compass, Copy, Home, Link2, PenLine, RotateCcw, Settings2, User } from 'lucide-react'
 import RefractionImage from './components/liquid/RefractionImage'
+import DockGlassSurface from './components/liquid/DockGlassSurface'
 
 /**
  * Liquid Glass Playground
@@ -88,12 +89,37 @@ function readParams(): { params: Params; shape: Shape } {
   }
 }
 
+/** 线上底栏真正在用的材质参数（DockGlassSurface 默认 variant="local-tuned"） */
+const LIVE_PARAMS: [string, string][] = [
+  ['直边唇宽 band', '10px'],
+  ['直边采样 pull', '22px'],
+  ['straightBend / Sigma', '1.15 / 2.25'],
+  ['圆角端 endBand / endPull', '7.5px / 15px'],
+  ['endReach', '22px'],
+  ['模糊 blur', '2.2（兜底 blur(3px) saturate(1.15)）'],
+  ['饱和 saturate / glassSaturate', '1.2 / 1.05'],
+  ['高光 specularSlope / sigma', '1.1 / 2.7'],
+  ['rimSmooth', '0.6'],
+  ['tint / ringWidth', '0.18 / 3px'],
+]
+
+const LIVE_CODE = `import DockGlassSurface from './components/liquid/DockGlassSurface'
+
+{/* 线上底栏同款材质：variant 默认就是 local-tuned。
+    真实折射只在 Chromium 启用，其余内核自动落加厚磨砂。 */}
+<DockGlassSurface>
+  <nav className="flex items-center justify-between px-2 py-2">
+    {/* 首页 / 随笔 / 发现 / 消息 / 我的 */}
+  </nav>
+</DockGlassSurface>`
+
 export default function App() {
   const [initial] = useState(readParams)
   const [params, setParams] = useState<Params>(initial.params)
   const [shape, setShape] = useState<Shape>(initial.shape)
   const [active, setActive] = useState(0)
   const [uiOpen, setUiOpen] = useState(false)
+  const [engine, setEngine] = useState<'image' | 'live'>('image')
   const [copied, setCopied] = useState('')
   const bgRef = useRef<HTMLImageElement>(null)
 
@@ -194,6 +220,24 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
             </button>
           </div>
 
+          {/* 引擎：全兼容图片折射 / 线上原版实时折射 */}
+          <div className="mt-3 grid grid-cols-2 gap-1.5">
+            {(['image', 'live'] as const).map(e => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => setEngine(e)}
+                className={`rounded-lg px-2 py-1.5 text-[11px] ${
+                  engine === e ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
+                }`}
+              >
+                {e === 'image' ? '全兼容（图片折射）' : '线上原版（实时）'}
+              </button>
+            ))}
+          </div>
+
+          {engine === 'image' && (
+          <>
           {/* 形状 */}
           <div className="mt-3 grid grid-cols-4 gap-1.5">
             {SHAPES.map(s => (
@@ -241,21 +285,42 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
             <Slider label="光照角度" value={params.lightAngle} min={-180} max={180} step={5} unit="°" onChange={v => set('lightAngle', v)} />
           </div>
 
+          </>
+          )}
+
+          {engine === 'live' && (
+            <div className="mt-3">
+              <p className="m-0 text-[11px] leading-4 text-neutral-500">
+                就是线上底栏那套材质（<code>variant="local-tuned"</code>），不是图片折射。
+                真实折射只在 Chromium 启用，iPhone / 微信会落回加厚磨砂——这是它的能力边界，不是参数问题。
+              </p>
+              <dl className="m-0 mt-2 space-y-1">
+                {LIVE_PARAMS.map(([k, v]) => (
+                  <div key={k} className="flex items-baseline justify-between gap-3 text-[11px]">
+                    <dt className="shrink-0 text-neutral-400">{k}</dt>
+                    <dd className="m-0 text-right font-mono text-neutral-800">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
           {/* 代码导出 */}
           <div className="mt-4 rounded-xl bg-neutral-950 p-2.5">
             <div className="flex items-center justify-between">
               <p className="m-0 text-[11px] font-semibold text-neutral-400">当前参数的代码</p>
               <button
                 type="button"
-                onClick={() => copy(code, 'code')}
+                onClick={() => copy(engine === 'live' ? LIVE_CODE : code, 'code')}
                 className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] text-white"
               >
                 <Copy className="h-3 w-3" /> {copied === 'code' ? '已复制' : '复制'}
               </button>
             </div>
-            <pre className="m-0 mt-2 max-h-44 overflow-auto whitespace-pre text-[10px] leading-4 text-emerald-200">{code}</pre>
+            <pre className="m-0 mt-2 max-h-44 overflow-auto whitespace-pre text-[10px] leading-4 text-emerald-200">{engine === 'live' ? LIVE_CODE : code}</pre>
           </div>
 
+          {engine === 'image' && (
           <button
             type="button"
             onClick={() => copy(shareUrl, 'link')}
@@ -263,10 +328,38 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
           >
             <Link2 className="h-3.5 w-3.5" /> {copied === 'link' ? '链接已复制' : '复制分享链接（带全部参数）'}
           </button>
+          )}
         </div>
       )}
 
-      {/* 玻璃本体 */}
+      {/* 线上原版：实时 backdrop 折射（Chromium），与全兼容版并排可切 */}
+      {engine === 'live' && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-[max(14px,env(safe-area-inset-bottom))]">
+          <div className="pointer-events-auto w-full max-w-[430px] [&_nav]:text-white">
+            <DockGlassSurface enableLens>
+              <div className="flex items-center justify-between px-2 py-2">
+                {TABS.map(({ label, Icon }, i) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setActive(i)}
+                    aria-label={label}
+                    className={`flex flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 ${
+                      active === i ? 'text-white' : 'text-white/60'
+                    }`}
+                  >
+                    <Icon className="h-[21px] w-[21px]" strokeWidth={active === i ? 2.3 : 1.9} />
+                    <span className={`text-[10px] leading-none ${active === i ? 'font-semibold' : ''}`}>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </DockGlassSurface>
+          </div>
+        </div>
+      )}
+
+      {/* 玻璃本体（全兼容图片折射） */}
+      {engine === 'image' && (
       <div
         className={
           shape === 'pill'
@@ -320,6 +413,7 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
           ) : null}
         </RefractionImage>
       </div>
+      )}
     </div>
   )
 }
