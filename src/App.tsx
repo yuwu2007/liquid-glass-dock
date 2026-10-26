@@ -45,6 +45,7 @@ export default function App() {
   })
   const [dark, setDark] = useState(false)
   const itemRefs = useRef<(HTMLElement | null)[]>([])
+  const photoRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -82,7 +83,7 @@ export default function App() {
 
         {/* 手机框：底栏压在一张真实照片上，玻璃才有东西可折 */}
         <div className="phone">
-          <img src={photo.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <img ref={photoRef} src={photo.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/5 to-black/45" />
 
           <div className="relative h-full">
@@ -105,7 +106,7 @@ export default function App() {
             {/* 一块大玻璃：不是为了导航，纯粹看通透度与边缘折射 */}
             <div className="px-4 pb-3">
               {refract === 'image' ? (
-                <RefractionImage src={photo.src} radius={26} blur={4} strength={30} className="w-full">
+                <RefractionImage src={photo.src} backdropRef={photoRef} radius={26} blur={3} strength={16} className="w-full">
                   <div className="px-4 py-3.5">
                     <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Refraction · image</p>
                     <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">

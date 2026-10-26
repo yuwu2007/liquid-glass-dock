@@ -1,28 +1,29 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 
 /**
  * RefractionImage —— 不依赖 `backdrop-filter: url()` 的折射方案。
  *
- * 原理：把背景图本身当作采样源，用 SVG `feDisplacementMap` 按圆角矩形法线
- * 把边缘像素往内推，形成透镜边缘的弯曲。SVG 滤镜在 Safari / Firefox / 微信 X5
- * 都支持（不兼容的只是 `backdrop-filter` 收不收 `url()`）。
+ * 关键点：它折射的必须是"面板正后方那块画面"，所以要么传 `backdropRef`
+ * （页面里那张真实背景图），要么它会退化成"把同一张图铺满面板"—— 后者看起来
+ * 就是贴了张照片，没有玻璃感。演示页里就是靠 backdropRef 与手机背景图对齐。
  *
- * 代价：折的是"你给的那张图"，不是页面实时合成内容 —— 适合壁纸、头图、封面。
- *
- * 实现细节（踩过的坑）：整个折射都在 SVG 内部完成（<image> + filter）。
- * 不要用 CSS `filter: url()` 作用在 HTML <img> 上 —— 那样滤镜区域按 HTML 盒模型
- * 计算，边缘会露出一条笔直的裁切断口。
+ * 原理：把背景图按它在页面上的真实位置画进 SVG，再用 `feDisplacementMap`
+ * 沿圆角矩形法线把边缘像素往里推。SVG 滤镜在 Safari / Firefox / 微信 X5 都支持
+ * （不兼容的只是 `backdrop-filter` 收不收 `url()`）。
  */
 export default function RefractionImage({
   src,
+  backdropRef,
   radius = 28,
   strength = 22,
-  blur = 5,
+  blur = 4,
   className = '',
   children,
 }: {
   src: string
+  /** 背景图元素（<img> 或任意带背景的容器）：有它才能"折到正确的画面" */
+  backdropRef?: RefObject<HTMLElement | null>
   radius?: number
   /** 边缘位移强度（px）：越大越像厚玻璃，过大边缘会糊 */
   strength?: number
@@ -35,7 +36,8 @@ export default function RefractionImage({
   const rawId = useId().replace(/[:]/g, '')
   const filterId = `rfi-${rawId}`
   const [map, setMap] = useState('')
-  const [size, setSize] = useState({ w: 0, h: 0 })
+  const [box, setBox] = useState({ w: 0, h: 0 })
+  const [photoBox, setPhotoBox] = useState({ x: 0, y: 0, w: 0, h: 0 })
 
   const pad = Math.ceil(Math.max(strength * 2, blur * 3))
 
@@ -43,27 +45,45 @@ export default function RefractionImage({
     const el = wrapRef.current
     if (!el) return
     let raf = 0
-    const build = () => {
+
+    const measure = () => {
       raf = 0
       const w = Math.round(el.offsetWidth)
       const h = Math.round(el.offsetHeight)
       if (w < 40 || h < 40) return
-      setSize({ w, h })
-      setMap(buildEdgeMap(w + pad * 2, h + pad * 2, pad, pad, w, h, Math.min(radius, h / 2), strength))
+      setBox({ w, h })
+
+      const a = el.getBoundingClientRect()
+      const b = backdropRef?.current?.getBoundingClientRect()
+      if (b && b.width > 0) {
+        setPhotoBox({ x: b.left - a.left, y: b.top - a.top, w: b.width, h: b.height })
+      } else {
+        setPhotoBox({ x: 0, y: 0, w, h })
+      }
+      setMap(buildEdgeMap(w, h, Math.min(radius, h / 2), strength))
     }
-    build()
-    const ro = new ResizeObserver(() => {
-      if (!raf) raf = requestAnimationFrame(build)
-    })
+
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(measure)
+    }
+
+    schedule()
+    const ro = new ResizeObserver(schedule)
     ro.observe(el)
+    // 面板会随内容滚动：背景图是固定的，所以位置要跟着重算
+    window.addEventListener('scroll', schedule, true)
+    window.addEventListener('resize', schedule)
     return () => {
       ro.disconnect()
+      window.removeEventListener('scroll', schedule, true)
+      window.removeEventListener('resize', schedule)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [radius, strength, pad])
+  }, [radius, strength, backdropRef])
 
-  const W = size.w + pad * 2
-  const H = size.h + pad * 2
+  const { w, h } = box
+  // 位移贴图要覆盖到面板外一圈（边缘要把外侧像素折进来）
+  const filterBox = { x: -pad, y: -pad, w: w + pad * 2, h: h + pad * 2 }
 
   return (
     <div
@@ -72,10 +92,10 @@ export default function RefractionImage({
       style={{ borderRadius: radius }}
       data-refraction-image
     >
-      {size.w > 0 && (
+      {w > 0 && (
         <svg
           className="absolute inset-0 h-full w-full"
-          viewBox={`0 0 ${size.w} ${size.h}`}
+          viewBox={`0 0 ${w} ${h}`}
           preserveAspectRatio="none"
           aria-hidden="true"
         >
@@ -84,41 +104,39 @@ export default function RefractionImage({
               id={filterId}
               filterUnits="userSpaceOnUse"
               primitiveUnits="userSpaceOnUse"
-              x={-pad}
-              y={-pad}
-              width={W}
-              height={H}
+              x={filterBox.x}
+              y={filterBox.y}
+              width={filterBox.w}
+              height={filterBox.h}
               colorInterpolationFilters="sRGB"
             >
-              {map && (
-                <feImage href={map} x={-pad} y={-pad} width={W} height={H} preserveAspectRatio="none" result="lens" />
-              )}
+              <feImage href={map} x={0} y={0} width={w} height={h} preserveAspectRatio="none" result="lens" />
               <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="soft" />
-              <feDisplacementMap in="soft" in2="lens" scale={strength} xChannelSelector="R" yChannelSelector="G" />
+              <feDisplacementMap in="soft" in2="lens" scale={strength * 2} xChannelSelector="R" yChannelSelector="G" />
             </filter>
           </defs>
+          {/* 背景图按它在页面上的真实位置/尺寸画进来：这样玻璃里透出的就是"面板正后方"的画面 */}
           <image
             href={src}
-            x={-pad}
-            y={-pad}
-            width={W}
-            height={H}
+            x={photoBox.x}
+            y={photoBox.y}
+            width={photoBox.w || w}
+            height={photoBox.h || h}
             preserveAspectRatio="xMidYMid slice"
             filter={`url(#${filterId})`}
           />
         </svg>
       )}
 
-      {/* 玻璃感：压暗 + 上缘高光 + 内描边，和 backdrop 版保持同一套观感 */}
+      {/* 玻璃感：上缘高光 + 轻微压暗（不做整体磨砂，否则又变成"贴图"） */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           borderRadius: radius,
-          background:
-            'radial-gradient(120% 100% at 50% 0%, rgba(255,255,255,0.16), transparent 55%), radial-gradient(140% 120% at 50% 120%, rgba(0,0,0,0.05), transparent 62%)',
+          background: 'radial-gradient(120% 100% at 50% 0%, rgba(255,255,255,0.10), transparent 58%)',
           boxShadow:
-            'inset 0 0 0 1px rgba(255,255,255,0.30), inset 0 6px 16px -10px rgba(255,255,255,0.55), inset 0 -8px 16px -14px rgba(0,0,0,0.18)',
+            'inset 0 0 0 1px rgba(255,255,255,0.42), inset 0 6px 16px -12px rgba(255,255,255,0.45), inset 0 -8px 16px -14px rgba(0,0,0,0.18)',
         }}
       />
 
@@ -127,21 +145,8 @@ export default function RefractionImage({
   )
 }
 
-/**
- * 生成位移贴图：R/G 通道编码"往内推"的方向，越贴边越强。
- * 画布带 padding，弧度对齐面板矩形（ox,oy,PanelW,PanelH），
- * 避免位移贴图和源图在边缘错位。
- */
-function buildEdgeMap(
-  W: number,
-  H: number,
-  ox: number,
-  oy: number,
-  PanelW: number,
-  PanelH: number,
-  R: number,
-  strength: number,
-): string {
+/** 位移贴图：R/G 编码"往内推"的方向，越贴边越强（画布尺寸 = 面板尺寸） */
+function buildEdgeMap(W: number, H: number, R: number, strength: number): string {
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
@@ -149,24 +154,26 @@ function buildEdgeMap(
   if (!ctx) return ''
   const img = ctx.createImageData(W, H)
   const d = img.data
-  const band = Math.max(8, Math.min(30, Math.round(Math.min(PanelW, PanelH) * 0.22)))
-  const amp = Math.min(60, strength * 1.6)
+  // 环宽要够大，才看得出"边缘一圈透镜"；量程吃满，最大位移 ≈ strength px
+  const band = Math.max(12, Math.min(30, Math.round(Math.min(W, H) * 0.28)))
+  const amp = 127
 
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      const px = x + 0.5 - ox
-      const py = y + 0.5 - oy
-      const sd = sdRoundRect(px, py, PanelW, PanelH, R) // <0 在内部
+      const px = x + 0.5
+      const py = y + 0.5
+      const sd = sdRoundRect(px, py, W, H, R)
       const depth = -sd
       let dx = 0
       let dy = 0
       if (depth > -band && depth < band) {
         const t = Math.max(0, 1 - Math.max(0, depth) / band)
         const e = 1
-        const nx = sdRoundRect(px + e, py, PanelW, PanelH, R) - sdRoundRect(px - e, py, PanelW, PanelH, R)
-        const ny = sdRoundRect(px, py + e, PanelW, PanelH, R) - sdRoundRect(px, py - e, PanelW, PanelH, R)
+        const nx = sdRoundRect(px + e, py, W, H, R) - sdRoundRect(px - e, py, W, H, R)
+        const ny = sdRoundRect(px, py + e, W, H, R) - sdRoundRect(px, py - e, W, H, R)
         const len = Math.hypot(nx, ny) || 1
-        const k = t * t * amp
+        // smoothstep：边缘最强、向内平滑衰减，避免出现一条硬带
+        const k = t * t * (3 - 2 * t) * amp
         dx = -(nx / len) * k
         dy = -(ny / len) * k
       }
@@ -181,7 +188,6 @@ function buildEdgeMap(
   return canvas.toDataURL('image/png')
 }
 
-/** 圆角矩形的有符号距离（内部为负） */
 function sdRoundRect(px: number, py: number, W: number, H: number, R: number): number {
   const hx = W / 2
   const hy = H / 2
