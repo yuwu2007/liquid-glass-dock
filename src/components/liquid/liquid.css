@@ -1,0 +1,145 @@
+@import './material.css';
+/* ========================================
+   Liquid 液态玻璃效果包样式（原 BottomNav 内嵌实现，2026-09-05 抽离为可复用包）
+   类名语义（由 LiquidSurface 组件内部使用）：
+   - .glass-dock       玻璃本体：透明底 + backdrop blur/saturate + 受光/阴影/镜面高光
+   - .dock-rim         采集色描边环（垫底兄弟，必须画在 glass 之前、与其同矩形）
+   - .lens-scale       位移透镜链开关（挂 glass 本体：M=0.1 等比缩小凹透镜主视效）
+   各实例的滤镜 url id（#…-concave-lens / #…-scale-lens）由 LiquidSurface 按实例生成，
+   以 inline style 注入，因此支持同页多个实例互不冲突。
+   ======================================== */
+
+/* ---- 玻璃本体（对标苹果 ultraThinMaterial：透明 + blur(6) saturate(150%)）----
+   防"断层/一刀切"：纯透明基底 + backdrop 轻柔化；上缘受光 + 下缘弱反光 +
+   近距接触阴影 + 环境悬浮投影；translateZ(0) 独立合成层稳定 stacking。
+   注：saturate 由 200% 降至 150% —— 高饱和要求每帧对背景做色彩矩阵重采样，
+   在 Android 上滚动重绘时合成不稳会闪 1px 黑线（同桌面端导航栏闪烁的根因），
+   降到 150% 观感几乎无差而成本明显下降。
+   注：blur 2026-09-18 由 4px 提到 6px（站长："模糊度可以再增加点"）。
+   这里的值只是**降级/兜底路径**用的（透镜链不可用时）；走位移链时模糊由
+   DEFAULT_LENS_PROFILE.blur（stdDeviation）决定，两者改的时候要一起改。
+   真机调参：URL 加 `?blur=4~20` 可临时覆盖透镜链的模糊。
+   注意：不写 position —— 由外层定位容器提供。 */
+.glass-dock {
+  background-color: transparent;
+  -webkit-backdrop-filter: blur(6px) saturate(150%);
+  backdrop-filter: blur(6px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 14px 40px rgba(0, 0, 0, 0.10);
+  transform: translateZ(0);
+}
+/* 镜面高光带：左上斜向柔光（纯渐变，规避 Safari displacement 合成问题） */
+.glass-dock::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* 0.32 → 0.20：白纱罩淡一点，背景内容透出来更多（通透感） */
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.20) 0%, transparent 34%);
+  pointer-events: none;
+}
+.glass-dock > * {
+  position: relative;
+  z-index: 1;
+}
+/* 降级：无 backdrop-filter 的老内核（X5 等）→ 提高不透明度保可读 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-dock { background: rgba(255, 255, 255, 0.92); }
+}
+
+/* ---- 采集色描边环（垫底式双层，杜绝 UI 折射）----
+   硬约束（均踩过坑）：
+   1) rim 必须与 glass 平级（垫底兄弟）——嵌进 glass 内会被 backdrop root 隔离，采样到空白；
+   2) rim 必须画在 glass 之下——在上方会把 glass 自身内容折射进描边；
+   3) 环形状只能用 CSS gradient mask 剪出（image-mask / feComposite 叠在 backdrop-filter:url()
+      上会被 Chromium 裁没/丢弃，实测事故）；
+   4) 环宽/圆角不写死在 CSS，由组件 inline 注入（padding=环宽，border-radius=圆角）。 */
+.dock-rim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-backdrop-filter: url(#placeholder-lens); /* 实际由组件 inline 覆盖为实例 id */
+  backdrop-filter: url(#placeholder-lens);
+  /* 边缘羽化：让环内侧与背景色自然交融（黄↔白、黑↔白处生过渡色），
+     0.8px 只柔化交界，不破坏环主体清晰度 */
+  -webkit-filter: blur(0.8px);
+  filter: blur(0.8px);
+  /* 环形挖空：content-box 与整框异或 → 只留 padding 宽的边环（padding 由组件注入） */
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+/* ---- 位移透镜链（挂 glass 本体）----
+   M=0.1 等比缩小（凹透镜主视效）→ blur(4px)+saturate(200%)。
+   rim 链与 lens 链共用同一 SVG 宿主（内含两个 filter），url id 由组件注入。 */
+.glass-dock.lens-scale {
+  -webkit-backdrop-filter: url(#placeholder-scale); /* 实际由组件 inline 覆盖为实例 id */
+  backdrop-filter: url(#placeholder-scale);
+}
+
+/* ---- 窄提亮边线（华为"细亮边"，2026-09-22）----
+   由 LiquidSurface 在传 rimLine 时渲染于玻璃之上；alpha 衰减在滤镜链内
+   （buildLiquidLens 的 line 链：贴图 B 通道 → feComposite in），此处只管几何定位。
+   滤镜 id 由组件 inline 覆盖为实例 id。 */
+.dock-rim-line {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-backdrop-filter: url(#placeholder-line);
+  backdrop-filter: url(#placeholder-line);
+}
+
+/* ---- 底栏专用：彩色采色边框（2026-09-20 站长：边框跟背景走彩色，不要固定白描边）----
+   去掉 .glass-dock 的两条固定白色 inset 描边，只留环境投影；
+   边框视觉由 .dock-rim 采色环承担（rim saturate 提升后忠实采集并放大背景色）。
+   仅底栏实例挂 yx-color-edge，其他 LiquidSurface（顶栏等）不受影响。 */
+.glass-dock.yx-color-edge {
+  /* 固定的中性高光仅塑造厚度；彩色边缘由垫底的 dock-rim 从页面取样。 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+    0 6px 22px rgba(0, 0, 0, 0.35);
+}
+/* 2026-09-27 站长改口径：深色下"边框"（受光上缘/下缘/投影）不再单独提亮 —— 边框保持和浅色同一档，
+   要亮的是**折射进来的颜色**（见 DOCK_DARK_LENS_PROFILE 的 specularSlope / edgeLift）。 */
+
+/* Local contrast around controls preserves legibility over light and dark photos. */
+.glass-dock.yx-color-edge .dock-nav-item {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+.glass-dock.yx-color-edge .dock-nav-item svg {
+  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.85));
+}
+.dark .glass-dock.yx-color-edge .dock-nav-item {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+.dark .glass-dock.yx-color-edge .dock-nav-item svg {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.9));
+}
+
+/* 底栏：白纱罩全场景 0.03（调参台值，深色/浅色同一 veil 参数）——
+   避免斜向白光把边缘彩色与 rimLine 亮线冲淡 */
+.glass-dock.yx-color-edge::after {
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.03) 0%, transparent 34%);
+}
+/* 深色专用白纱罩（2026-09-27 提亮）：0.03 → 0.08，给整块玻璃体一层薄光，
+   不碰浅色（浅色维持调参台原值）。 */
+/* 2026-09-27 站长改口径：「不要边框变亮，要边框折射的颜色变亮，刚好和浅色模式反着来」
+   → 玻璃体上的白纱罩（整块玻璃发亮）撤销，亮度全部交给折射链里的 specularSlope/edgeLift。 */
+
+/* 底栏色环：相邻颜色交融加强（2026-09-20）
+   羽化 0.8→1.4px，环内外边界与环上色块交界一并柔化；
+   2026-09-22 调参台对齐 1.4→1.0（窄边线层接管"勾边"职责，内晕环保持柔）。 */
+.dock-rim.yx-rim-smooth {
+  filter: blur(1px);
+  -webkit-filter: blur(1px);
+  /* 靠边框颜色更深（2026-09-20 站长）：inset 内阴影从边缘向内渐隐，环带外侧深、内侧淡；alpha 0.30 + 模糊 6px，14px 环带上呈自然渐变 */
+  box-shadow: inset 0 0 6px 1.5px rgba(0, 0, 0, 0.30);
+}
+/* 2026-09-27 站长改口径：「不要边框变亮，要边框折射的颜色变亮」→ 深色下 30% 黑内阴影保持原样，
+   白内晕（把色环本身点亮）撤销；深色的亮度只从折射链来。 */

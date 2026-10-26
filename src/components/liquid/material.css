@@ -1,0 +1,10 @@
+:root {
+  --yx-liquid-native-filter: blur(3px) saturate(1.15);
+  --yx-liquid-highlight: linear-gradient(115deg, rgb(255 255 255 / 20%), transparent 34%);
+  --yx-liquid-overlay-tint: rgb(244 246 250 / 62%);
+  --yx-liquid-overlay-outline: rgb(255 255 255 / 60%);
+}
+.dark {
+  --yx-liquid-overlay-tint: rgb(30 32 36 / 64%);
+  --yx-liquid-overlay-outline: rgb(255 255 255 / 32%);
+}

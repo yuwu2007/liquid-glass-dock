@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/* 站点用的是 documentElement 上的 .dark 类，这里显式声明一次 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --sat: 0px; /* 顶部安全区（演示页为 0） */
+  --sab: 0px; /* 底部安全区（演示页为 0） */
+  --dock-glow-c: rgba(0, 91, 172, 0.22);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  background: #eef1f7;
+  color: #14171c;
+}
+
+.dark body {
+  background: #0d1015;
+  color: #f2f4f8;
+}
+
+/* 手机框 */
+.phone {
+  width: 390px;
+  height: 760px;
+  border-radius: 46px;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 10px #14171c,
+    0 30px 70px rgba(18, 28, 46, 0.28);
+}
+
+.dark .phone {
+  background: #14171c;
+  box-shadow:
+    0 0 0 10px #2a2e38,
+    0 30px 70px rgba(0, 0, 0, 0.6);
+}
+
+/* 玻璃要折射的彩色底衬 */
+.phone-aurora {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 38% at 12% 92%, rgba(255, 122, 182, 0.55), transparent 70%),
+    radial-gradient(48% 32% at 88% 88%, rgba(84, 172, 255, 0.55), transparent 72%),
+    radial-gradient(54% 30% at 50% 78%, rgba(255, 205, 106, 0.5), transparent 74%);
+}
+
+/* 分段滑块的触控热区：视觉高度只有 17.5px，上下各撑 14px 才够 44px */
+.topic-slider-hot {
+  position: relative;
+}
+.topic-slider-hot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -14px;
+  bottom: -14px;
+  border-radius: inherit;
+}

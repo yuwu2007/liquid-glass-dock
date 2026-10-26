@@ -1,0 +1,86 @@
+/* ========================================
+   DockSlider —— 底栏「Q 弹滑块」封装（2026-09-24）
+   把底栏选中态的三件套整体打包成一个组件：
+     1) 选中项光晕（.dock-glow，调参台华为风径向柔光，跟随激活格）
+     2) 滑动指示胶囊（.dock-slider-indicator，单一元素连续滑动 + 果冻挤压）
+     3) 测量/重测/果冻逻辑（useLayoutEffect + ResizeObserver + rAF 弹簧仿真：
+        DockSlider.tsx 里逐帧写 transform/borderRadius；不是 CSS 过渡、也不是 WAAPI）
+   父组件只需：把每个格子元素登记进自己的 ref 数组，然后把读取函数传给本组件。
+   用法（格子容器内、所有格子之前渲染）：
+     <div className="relative grid grid-cols-N">
+       <DockSlider activeIndex={i} getItem={(idx) => itemRefs.current[idx]} />
+       {items.map(...)}
+     </div>
+   ======================================== */
+
+/* 滑动指示胶囊：单一元素随激活格连续滑动（位置全部由 JS 弹簧仿真正写 transform）。
+   2026-09-27 站长「审查并优化底栏」时收敛：
+   · 原来这里写 `transition: transform 320ms cubic-bezier(0.22,1.3,0.36,1)`，与 JS 弹簧是
+     **两套时间模型** —— 切换走弹簧、而 resize/首帧重测走 CSS 过渡（同一条曲线会过冲），
+     两者观感不同、还互相打架。现在位置只认弹簧，CSS 只管 opacity（首帧淡入 / 无激活格淡出）。
+   · `will-change: transform` 原来是常驻的（长期占一个合成层），改由弹簧在仿真期间挂、归位即清。 */
+.dock-slider-indicator {
+  position: absolute;
+  /* 垂直居中锚点：配合 JSX 内联 transform 的 translateY(-50%)，
+     栏体改高度时无需再手工对齐 */
+  top: 50%;
+  height: 46px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -1px 0 rgba(40, 70, 120, 0.08),
+    0 0 0 1px rgba(40, 70, 120, 0.08);
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+/* 深色下黑雾不可见（2026-09-24 站长：弹动效果看不见）→ 反转为亮雾：
+   压暗玻璃体（rgba(9,10,13) tint）上呈现淡白胶囊，滑动/果冻形变可读。
+   2026-09-27 深色提亮（站长：深色太暗看不出变化）：0.07→0.15，描边 0.08→0.18、上缘 0.28→0.45，
+   让它在一块被提亮的板子上依然明确"选得中"。 */
+.dark .dock-slider-indicator {
+  /* 2026-09-27 站长：「不要边框变亮」→ 上缘/描边回到浅色档（.28/.08），只保留选中底色与光晕。
+     2026-09-29 站长：「这个底部导航栏的滑块啊，暗色模式啊，有点看不清」→ 只提暗色填充：
+     0.15 → 0.26（实测真实像素：同一采样盒里滑块填充 rgb(82,82,85) → rgb(104,105,107)，
+     与 dock 底面 rgb(19,21,25) 的 WCAG 相对亮度比 2.35:1 → 3.33:1）。浅色那条规则一个字没动。 */
+  /* 2026-09-29 站长二次拍板：「只有微信有这个效果；它有点太白太亮了，没必要这么亮」
+     → 0.26 往回收一档到 0.19（介于原档 0.15 与本轮过亮档 0.26 之间），
+     只求「能分清选中格」，不做亮块。四条边的补光同步收一半。 */
+  background: rgba(255, 255, 255, 0.19);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 12px rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* 选中项光晕（调参台华为风 .glow 对齐）：激活格背后一团径向柔光，
+   随切换连续滑动；浅色=淡蓝紫 0.18，深色=白 0.32（2026-09-27 提亮：0.22→0.32；
+   原注释写的"深色=品牌蓝 0.55"与实现不符，已按实现更正）。
+   2026-09-27 两处收敛：
+   · 位置从 `left` 改为 transform 承载 —— 动 left 每帧触发布局重排，并在元素上每帧重算
+     blur(10px) 的滤镜结果；换成 transform 后整层交给合成器。
+   · 位移不再走 CSS 过渡：由 DockSlider 的弹簧仿真与胶囊**同帧写同一位置**（同一套物理，
+     一起起步、一起到达），CSS 再留一条 transform 过渡只会和它错拍。 */
+.dock-glow {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 110px;
+  height: 60px;
+  transform: translate3d(0, 0, 0) translate(-50%, -50%);
+  background: radial-gradient(closest-side, var(--dock-glow-c, rgba(255, 255, 255, 0.18)) 0%, transparent 72%);
+  filter: blur(10px);
+  -webkit-filter: blur(10px);
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+.dark .dock-glow {
+  --dock-glow-c: rgba(255, 255, 255, 0.32);
+}
+
+/* 降级：用户要求减少动效 → 滑块只淡入淡出、光晕直接跳变 */
+@media (prefers-reduced-motion: reduce) {
+  .dock-slider-indicator { transition: opacity 200ms ease !important; }
+  .dock-glow { transition: none !important; }
+}
