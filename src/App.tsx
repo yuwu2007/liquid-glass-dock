@@ -74,7 +74,7 @@ export default function App() {
                   <h2 className="m-0 mt-0.5 text-[1.05rem] font-extrabold">今天也在好好生活</h2>
                 </div>
                 <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-fuchsia-400 to-sky-500 text-[0.7rem] font-bold text-white">
-                  秀
+                  L
                 </span>
               </div>
 
