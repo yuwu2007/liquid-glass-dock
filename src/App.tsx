@@ -114,7 +114,7 @@ export default function App() {
             {/* 一块大玻璃：不是为了导航，纯粹看通透度与边缘折射 */}
             <div className="px-4 pb-3">
               {refract === 'image' ? (
-                <RefractionImage src={photo.src} backdropRef={photoRef} radius={26} bevel={LENS[lens].bevel} strength={LENS[lens].strength} blur={frost ? 8 : LENS[lens].blur} veil={frost ? 0.1 : 0.03} className="w-full">
+                <RefractionImage src={photo.src} backdropRef={photoRef} radius={26} bevel={LENS[lens].bevel} strength={LENS[lens].strength} blur={frost ? 6 : LENS[lens].blur} veil={frost ? 0.06 : 0.03} className="w-full">
                   <div className="px-4 py-3.5">
                     <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Refraction · image</p>
                     <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
@@ -235,7 +235,7 @@ export default function App() {
             type="button"
             onClick={() => setFrost(v => !v)}
             className="rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-[0.72rem] text-neutral-700 backdrop-blur transition active:scale-95 dark:border-white/15 dark:bg-white/10 dark:text-white/80"
-            title="磨砂 = 位移前 8px 高斯模糊 + 薄奶白；高透 = 几乎不模糊"
+            title="磨砂 = 位移前 6px 高斯模糊 + 6% 奶白；高透 = 几乎不模糊"
           >
             {frost ? '磨砂' : '高透'}
           </button>
