@@ -2,44 +2,58 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 
 /**
- * RefractionImage —— 不依赖 `backdrop-filter: url()` 的折射方案。
+ * RefractionImage —— 跨浏览器的"真折射"玻璃（不依赖 backdrop-filter: url()）。
  *
- * 关键点：它折射的必须是"面板正后方那块画面"，所以要么传 `backdropRef`
- * （页面里那张真实背景图），要么它会退化成"把同一张图铺满面板"—— 后者看起来
- * 就是贴了张照片，没有玻璃感。演示页里就是靠 backdropRef 与手机背景图对齐。
+ * 光学模型（与 Apple Liquid Glass 的 Web 复现同一套物理）：
+ *   1. 圆角矩形 SDF 得到"离边多远、法线朝哪"；
+ *   2. 边缘一圈是凸面（squircle 剖面 h(t)=(1-(1-t)^4)^(1/4)），求表面倾角 θ1；
+ *   3. 斯涅尔定律 sinθ1 / n = sinθ2，光线偏折角 = θ1-θ2；
+ *   4. 位移 = tan(θ1-θ2) × 玻璃厚度，方向朝面板中心 —— 凸面把光往中间聚，
+ *      所以边缘是"放大弯折"，而不是把内部颜色涂抹成一条带子；
+ *   5. 高光用三维法线 N=(n·sinθ1, cosθ1) 与水平光 L 的 |N·L|，
+ *      在对称两侧各形成一弯亮弧（苹果玻璃边上那两道光）。
  *
- * 原理：把背景图按它在页面上的真实位置画进 SVG，再用 `feDisplacementMap`
- * 沿圆角矩形法线把边缘像素往里推。SVG 滤镜在 Safari / Firefox / 微信 X5 都支持
- * （不兼容的只是 `backdrop-filter` 收不收 `url()`）。
+ * 这些图在 canvas 里按 3 倍超采样生成，交给 SVG feDisplacementMap 执行，
+ * Safari / 微信 X5 / Firefox 都能跑。背景对齐靠 backdropRef。
  */
+
 export default function RefractionImage({
   src,
   backdropRef,
   radius = 28,
-  strength = 22,
-  blur = 4,
+  bevel,
+  strength = 34,
+  ior = 1.5,
+  blur = 0.5,
+  specular = 1,
   className = '',
   children,
 }: {
   src: string
-  /** 背景图元素（<img> 或任意带背景的容器）：有它才能"折到正确的画面" */
+  /** 背景图元素：玻璃折的就是它（必传，否则不知道面板后面是什么） */
   backdropRef?: RefObject<HTMLElement | null>
   radius?: number
-  /** 边缘位移强度（px）：越大越像厚玻璃，过大边缘会糊 */
+  /** 折射环宽度 px，默认短边的 1/4（封顶 40） */
+  bevel?: number
+  /** 玻璃光学厚度 px：越大边缘弯得越厉害。20 细腻 / 34 标准 / 60 夸张 */
   strength?: number
-  /** 玻璃本体的模糊（px），0 = 完全清晰（更像放大镜而不是玻璃） */
+  /** 折射率，水 1.33、玻璃 1.5、重火石 1.8 */
+  ior?: number
+  /** 位移前的预模糊，0.4~0.6 用来吃掉文字边缘的阶梯，不要当磨砂用 */
   blur?: number
+  /** 边缘高光强度 0~1.5 */
+  specular?: number
   className?: string
   children?: ReactNode
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const rawId = useId().replace(/[:]/g, '')
   const filterId = `rfi-${rawId}`
-  const [map, setMap] = useState('')
+  const clipId = `rfc-${rawId}`
+  const [maps, setMaps] = useState<{ disp: string; spec: string; scale: number }>({ disp: '', spec: '', scale: 0 })
   const [box, setBox] = useState({ w: 0, h: 0 })
   const [photoBox, setPhotoBox] = useState({ x: 0, y: 0, w: 0, h: 0 })
-
-  const pad = Math.ceil(Math.max(strength * 2, blur * 3))
+  const mapKey = useRef('')
 
   useEffect(() => {
     const el = wrapRef.current
@@ -51,8 +65,8 @@ export default function RefractionImage({
       const w = Math.round(el.offsetWidth)
       const h = Math.round(el.offsetHeight)
       if (w < 40 || h < 40) return
-      setBox({ w, h })
 
+      // 背景偏移每次滚动都要更新；折射贴图只在尺寸/参数变化时重算
       const a = el.getBoundingClientRect()
       const b = backdropRef?.current?.getBoundingClientRect()
       if (b && b.width > 0) {
@@ -60,7 +74,14 @@ export default function RefractionImage({
       } else {
         setPhotoBox({ x: 0, y: 0, w, h })
       }
-      setMap(buildEdgeMap(w, h, Math.min(radius, h / 2), strength))
+
+      const bv = Math.max(8, Math.min(bevel ?? Math.min(w, h) / 4, Math.min(w, h) / 2 - 1, 40))
+      const key = `${w}x${h}:${radius}:${bv}:${strength}:${ior}:${specular}`
+      if (key !== mapKey.current) {
+        mapKey.current = key
+        setBox({ w, h })
+        setMaps(buildLensMaps(w, h, Math.min(radius, h / 2), bv, strength, ior, specular))
+      }
     }
 
     const schedule = () => {
@@ -70,7 +91,6 @@ export default function RefractionImage({
     schedule()
     const ro = new ResizeObserver(schedule)
     ro.observe(el)
-    // 面板会随内容滚动：背景图是固定的，所以位置要跟着重算
     window.addEventListener('scroll', schedule, true)
     window.addEventListener('resize', schedule)
     return () => {
@@ -79,11 +99,10 @@ export default function RefractionImage({
       window.removeEventListener('resize', schedule)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [radius, strength, backdropRef])
+  }, [radius, bevel, strength, ior, specular, backdropRef])
 
   const { w, h } = box
-  // 位移贴图要覆盖到面板外一圈（边缘要把外侧像素折进来）
-  const filterBox = { x: -pad, y: -pad, w: w + pad * 2, h: h + pad * 2 }
+  const pad = Math.ceil(Math.max(strength, blur * 3, 8))
 
   return (
     <div
@@ -92,7 +111,7 @@ export default function RefractionImage({
       style={{ borderRadius: radius }}
       data-refraction-image
     >
-      {w > 0 && (
+      {w > 0 && maps.disp && (
         <svg
           className="absolute inset-0 h-full w-full"
           viewBox={`0 0 ${w} ${h}`}
@@ -100,44 +119,45 @@ export default function RefractionImage({
           aria-hidden="true"
         >
           <defs>
+            <clipPath id={clipId}>
+              <rect x={0} y={0} width={w} height={h} rx={Math.min(radius, h / 2)} />
+            </clipPath>
             <filter
               id={filterId}
               filterUnits="userSpaceOnUse"
               primitiveUnits="userSpaceOnUse"
-              x={filterBox.x}
-              y={filterBox.y}
-              width={filterBox.w}
-              height={filterBox.h}
+              x={-pad}
+              y={-pad}
+              width={w + pad * 2}
+              height={h + pad * 2}
               colorInterpolationFilters="sRGB"
             >
-              <feImage href={map} x={0} y={0} width={w} height={h} preserveAspectRatio="none" result="lens" />
+              <feImage href={maps.disp} x={0} y={0} width={w} height={h} preserveAspectRatio="none" result="lens" />
               <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="soft" />
-              <feDisplacementMap in="soft" in2="lens" scale={strength * 2} xChannelSelector="R" yChannelSelector="G" />
+              <feDisplacementMap in="soft" in2="lens" scale={maps.scale} xChannelSelector="R" yChannelSelector="G" />
             </filter>
           </defs>
-          {/* 背景图按它在页面上的真实位置/尺寸画进来：这样玻璃里透出的就是"面板正后方"的画面 */}
-          <image
-            href={src}
-            x={photoBox.x}
-            y={photoBox.y}
-            width={photoBox.w || w}
-            height={photoBox.h || h}
-            preserveAspectRatio="xMidYMid slice"
-            filter={`url(#${filterId})`}
-          />
+
+          <g clipPath={`url(#${clipId})`}>
+            <image
+              href={src}
+              x={photoBox.x}
+              y={photoBox.y}
+              width={photoBox.w || w}
+              height={photoBox.h || h}
+              preserveAspectRatio="xMidYMid slice"
+              filter={`url(#${filterId})`}
+            />
+            {maps.spec && <image href={maps.spec} x={0} y={0} width={w} height={h} preserveAspectRatio="none" />}
+          </g>
         </svg>
       )}
 
-      {/* 玻璃感：上缘高光 + 轻微压暗（不做整体磨砂，否则又变成"贴图"） */}
+      {/* 只有一道细边，主体高光交给折射/高光贴图 */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
-        style={{
-          borderRadius: radius,
-          background: 'radial-gradient(120% 100% at 50% 0%, rgba(255,255,255,0.10), transparent 58%)',
-          boxShadow:
-            'inset 0 0 0 1px rgba(255,255,255,0.42), inset 0 6px 16px -12px rgba(255,255,255,0.45), inset 0 -8px 16px -14px rgba(0,0,0,0.18)',
-        }}
+        style={{ borderRadius: radius, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.35)' }}
       />
 
       <div className="relative">{children}</div>
@@ -145,55 +165,127 @@ export default function RefractionImage({
   )
 }
 
-/** 位移贴图：R/G 编码"往内推"的方向，越贴边越强（画布尺寸 = 面板尺寸） */
-function buildEdgeMap(W: number, H: number, R: number, strength: number): string {
-  const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return ''
-  const img = ctx.createImageData(W, H)
-  const d = img.data
-  // 环宽要够大，才看得出"边缘一圈透镜"；量程吃满，最大位移 ≈ strength px
-  const band = Math.max(12, Math.min(30, Math.round(Math.min(W, H) * 0.28)))
-  const amp = 127
+/** 生成位移图 + 高光图；scale = 2 × 最大位移，通道 255 即对应最大位移 */
+function buildLensMaps(
+  W: number,
+  H: number,
+  R: number,
+  bevel: number,
+  depth: number,
+  ior: number,
+  specIntensity: number,
+): { disp: string; spec: string; scale: number } {
+  // 超采样：3 倍足够消掉边缘阶梯；面板特别大时降档，避免主线程长时间占用
+  let SS = 3
+  while (SS > 1 && W * H * SS * SS > 1_200_000) SS--
+  const sw = W * SS
+  const sh = H * SS
+  const halfW = W / 2
+  const halfH = H / 2
+  const r = Math.min(R, halfW, halfH)
+  const TAPER = Math.min(8, bevel * 0.45)
 
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const px = x + 0.5
-      const py = y + 0.5
-      const sd = sdRoundRect(px, py, W, H, R)
-      const depth = -sd
-      let dx = 0
-      let dy = 0
-      if (depth > -band && depth < band) {
-        const t = Math.max(0, 1 - Math.max(0, depth) / band)
-        const e = 1
-        const nx = sdRoundRect(px + e, py, W, H, R) - sdRoundRect(px - e, py, W, H, R)
-        const ny = sdRoundRect(px, py + e, W, H, R) - sdRoundRect(px, py - e, W, H, R)
-        const len = Math.hypot(nx, ny) || 1
-        // smoothstep：边缘最强、向内平滑衰减，避免出现一条硬带
-        const k = t * t * (3 - 2 * t) * amp
-        dx = -(nx / len) * k
-        dy = -(ny / len) * k
-      }
-      const i = (y * W + x) * 4
-      d[i] = Math.max(0, Math.min(255, Math.round(128 + dx)))
-      d[i + 1] = Math.max(0, Math.min(255, Math.round(128 + dy)))
-      d[i + 2] = 128
-      d[i + 3] = 255
+  const dx = new Float32Array(sw * sh)
+  const dy = new Float32Array(sw * sh)
+  const specA = new Float32Array(sw * sh)
+  let maxMag = 0
+
+  // 水平方向光（Lz=0）：对称两弯亮弧，正是苹果玻璃边的样子
+  const az = (-55 * Math.PI) / 180
+  const Lx = Math.cos(az)
+  const Ly = Math.sin(az)
+  const shininess = 12
+
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw; x++) {
+      const cx = (x + 0.5) / SS - halfW
+      const cy = (y + 0.5) / SS - halfH
+      const d = sdRoundRect(cx, cy, halfW, halfH, r)
+      if (d >= 0) continue
+      const dist = -d
+      if (dist >= bevel) continue
+
+      const t = Math.max(dist / bevel, 0.02) // 0 在边缘，1 到平顶；避开斜率奇点
+      const u = 1 - t
+      const u4 = u * u * u * u
+      // 凸面 squircle 剖面的斜率 → 表面倾角
+      const slope = (u * u * u) / Math.pow(1 - u4, 0.75)
+      const theta1 = Math.atan(slope)
+      const sinT2 = Math.sin(theta1) / ior
+      const theta2 = Math.asin(Math.min(1, Math.max(-1, sinT2)))
+
+      const innerFade = smoothstep((bevel - dist) / TAPER)
+      const outerFade = smoothstep(dist)
+      let mag = Math.tan(theta1 - theta2) * depth
+      mag *= innerFade * outerFade
+
+      const eps = 1
+      const gx = sdRoundRect(cx + eps, cy, halfW, halfH, r) - sdRoundRect(cx - eps, cy, halfW, halfH, r)
+      const gy = sdRoundRect(cx, cy + eps, halfW, halfH, r) - sdRoundRect(cx, cy - eps, halfW, halfH, r)
+      const gl = Math.hypot(gx, gy) || 1
+      const nx = gx / gl
+      const ny = gy / gl
+
+      const i = y * sw + x
+      // 凸面：取样点朝面板中心 → 边缘放大，而不是涂抹
+      dx[i] = -nx * mag
+      dy[i] = -ny * mag
+      const m = Math.hypot(dx[i], dy[i])
+      if (m > maxMag) maxMag = m
+
+      const sinT = Math.sin(theta1)
+      const cosT = Math.cos(theta1)
+      const dot = nx * sinT * Lx + ny * sinT * Ly
+      const directional = Math.pow(Math.abs(dot), shininess)
+      const baseline = sinT * 0.06
+      const rim = Math.min(1, sinT * 1.8)
+      specA[i] = Math.max(directional, baseline) * specIntensity * rim * innerFade * outerFade
     }
   }
-  ctx.putImageData(img, 0, 0)
-  return canvas.toDataURL('image/png')
+
+  const dispCanvas = document.createElement('canvas')
+  dispCanvas.width = sw
+  dispCanvas.height = sh
+  const dctx = dispCanvas.getContext('2d')
+  const specCanvas = document.createElement('canvas')
+  specCanvas.width = sw
+  specCanvas.height = sh
+  const sctx = specCanvas.getContext('2d')
+  if (!dctx || !sctx) return { disp: '', spec: '', scale: 0 }
+
+  const dImg = dctx.createImageData(sw, sh)
+  const sImg = sctx.createImageData(sw, sh)
+  const norm = maxMag > 0 ? 1 / maxMag : 1
+  for (let i = 0; i < sw * sh; i++) {
+    const o = i * 4
+    dImg.data[o] = clamp(128 + dx[i] * norm * 127)
+    dImg.data[o + 1] = clamp(128 + dy[i] * norm * 127)
+    dImg.data[o + 2] = 128
+    dImg.data[o + 3] = 255
+    sImg.data[o] = 255
+    sImg.data[o + 1] = 255
+    sImg.data[o + 2] = 255
+    sImg.data[o + 3] = clamp(specA[i] * 255)
+  }
+  dctx.putImageData(dImg, 0, 0)
+  sctx.putImageData(sImg, 0, 0)
+
+  return { disp: dispCanvas.toDataURL(), spec: specCanvas.toDataURL(), scale: maxMag * 2 }
 }
 
-function sdRoundRect(px: number, py: number, W: number, H: number, R: number): number {
-  const hx = W / 2
-  const hy = H / 2
-  const qx = Math.abs(px - hx) - (hx - R)
-  const qy = Math.abs(py - hy) - (hy - R)
+function smoothstep(t: number): number {
+  const x = Math.min(1, Math.max(0, t))
+  return x * x * (3 - 2 * x)
+}
+
+function clamp(v: number): number {
+  return Math.max(0, Math.min(255, Math.round(v)))
+}
+
+function sdRoundRect(px: number, py: number, halfW: number, halfH: number, r: number): number {
+  const qx = Math.abs(px) - (halfW - r)
+  const qy = Math.abs(py) - (halfH - r)
   const ax = Math.max(qx, 0)
   const ay = Math.max(qy, 0)
-  return Math.hypot(ax, ay) + Math.min(Math.max(qx, qy), 0) - R
+  return Math.hypot(ax, ay) + Math.min(Math.max(qx, qy), 0) - r
 }

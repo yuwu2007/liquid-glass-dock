@@ -61,9 +61,20 @@ import GlassPanel from './components/liquid/GlassPanel'
 ### 全兼容图片折射
 
 ```tsx
+import { useRef } from 'react'
 import RefractionImage from './components/liquid/RefractionImage'
 
-<RefractionImage src="/photo.jpg" radius={26} strength={26} className="w-full">
+const photoRef = useRef<HTMLImageElement>(null)
+
+<img ref={photoRef} src="/photo.jpg" className="absolute inset-0 h-full w-full object-cover" />
+<RefractionImage
+  src="/photo.jpg"
+  backdropRef={photoRef}
+  radius={26}
+  bevel={20}
+  strength={22}
+  className="w-full"
+>
   <div className="px-4 py-3">内容</div>
 </RefractionImage>
 ```
@@ -71,12 +82,30 @@ import RefractionImage from './components/liquid/RefractionImage'
 | 参数 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | `src` | `string` | 必填 | 背景图，玻璃折射的就是它 |
+| `backdropRef` | `RefObject` | 建议必填 | 页面里那张真实背景图；靠它把玻璃里的画面与背景**逐像素对齐**，滚动时也会重算 |
 | `radius` | `number` | `28` | 圆角 |
-| `strength` | `number` | `22` | 边缘位移强度（px），越大越"厚"，过大会糊 |
-| `className` / `children` | — | — | 外层类名 / 面板内容 |
+| `bevel` | `number` | 短边/4（封顶 40） | 折射环宽度 |
+| `strength` | `number` | `34` | 玻璃光学厚度：12 细腻 / 22 标准 / 44 夸张 |
+| `ior` | `number` | `1.5` | 折射率 |
+| `blur` | `number` | `0.5` | 位移前预模糊（吃阶梯用），不是磨砂 |
+| `specular` | `number` | `1` | 边缘高光强度 |
 
-原理：把背景图当作采样源，用 `feDisplacementMap` 按圆角矩形法线把边缘像素往里推。
+原理（与 Apple Liquid Glass 的 Web 复现同一套物理，代码为本项目自己实现）：
+
+1. 圆角矩形 SDF → 每像素离边距离与法线；
+2. 边缘是凸面 squircle 剖面 `h(t)=(1-(1-t)^4)^(1/4)`，求表面倾角 θ1；
+3. 斯涅尔定律 `sinθ1 / ior = sinθ2`，位移 `= tan(θ1-θ2) × strength`，**朝面板中心**——凸面聚光，所以边缘是放大弯折，不是涂抹拉伸；
+4. 高光用三维法线与水平光的 `|N·L|`，在对称两侧形成两弯亮弧；
+5. 位移图/高光图按 **3 倍超采样**在 canvas 生成，交给 `feImage → feDisplacementMap` 执行。
+
 `feDisplacementMap` 在 Safari / Firefox / 微信 X5 都支持——**不兼容的只是 `backdrop-filter` 收不收 `url()`**。
+
+参考（物理模型与写法启发，非代码来源）：
+[kube.io：Liquid Glass in the browser](https://kube.io/blog/liquid-glass-css-svg/)、
+[xanaxknight/liquid-glass-css-svg](https://github.com/xanaxknight/liquid-glass-css-svg)、
+[VII-Cae/hyalite--liquid-glass](https://github.com/VII-Cae/hyalite--liquid-glass)。
+
+> 注意：它折的是"一张背景图"，不是任意 DOM。要折实时页面内容，只能用 Chromium 的 `GlassPanel`。
 
 ## 为什么在别人项目里像"一层薄玻璃"
 

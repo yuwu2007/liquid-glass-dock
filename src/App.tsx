@@ -35,10 +35,17 @@ const BACKGROUNDS = [
   { key: 'fjord', label: '峡湾', src: `${import.meta.env.BASE_URL}bg/warm.jpg` },
 ] as const
 
+const LENS = {
+  subtle: { bevel: 16, strength: 12, blur: 0.8 },
+  standard: { bevel: 20, strength: 22, blur: 0.8 },
+  bold: { bevel: 30, strength: 44, blur: 0.6 },
+} as const
+
 export default function App() {
   const [active, setActive] = useState(0)
   const [bg, setBg] = useState<string>(BACKGROUNDS[0].key)
   const [refract, setRefract] = useState<'backdrop' | 'image'>('backdrop')
+  const [lens, setLens] = useState<keyof typeof LENS>('standard')
   const [optics, setOptics] = useState<'auto' | 'force' | 'compat'>(() => {
     const v = new URLSearchParams(location.search).get('optics')
     return v === 'force' || v === 'compat' ? v : 'auto'
@@ -106,7 +113,7 @@ export default function App() {
             {/* 一块大玻璃：不是为了导航，纯粹看通透度与边缘折射 */}
             <div className="px-4 pb-3">
               {refract === 'image' ? (
-                <RefractionImage src={photo.src} backdropRef={photoRef} radius={26} blur={3} strength={16} className="w-full">
+                <RefractionImage src={photo.src} backdropRef={photoRef} radius={26} bevel={LENS[lens].bevel} strength={LENS[lens].strength} blur={LENS[lens].blur} className="w-full">
                   <div className="px-4 py-3.5">
                     <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Refraction · image</p>
                     <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
@@ -114,6 +121,9 @@ export default function App() {
                     </p>
                     <p className="m-0 mt-1 text-[0.72rem] leading-5 text-white/75">
                       不用 backdrop-filter：Safari / 微信 / FireFox 也能看到边缘弯折。
+                    </p>
+                    <p className="m-0 mt-1 text-[0.62rem] text-white/55">
+                      滚到树影/山脊上有纹理的位置，边缘弯折最明显；纯色天空上看不出来。
                     </p>
                   </div>
                 </RefractionImage>
@@ -220,6 +230,20 @@ export default function App() {
           >
             折射：{refract === 'backdrop' ? 'backdrop 实时' : 'image 全兼容'}
           </button>
+          {(Object.keys(LENS) as (keyof typeof LENS)[]).map(k => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setLens(k)}
+              className={`rounded-full px-3 py-1.5 text-[0.72rem] transition active:scale-95 ${
+                lens === k
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                  : 'border border-black/10 bg-white/70 text-neutral-600 dark:border-white/15 dark:bg-white/10 dark:text-white/75'
+              }`}
+            >
+              {k === 'subtle' ? '细腻' : k === 'standard' ? '标准' : '夸张'}
+            </button>
+          ))}
           <button
             type="button"
             onClick={() => setOptics(o => (o === 'auto' ? 'force' : o === 'force' ? 'compat' : 'auto'))}
