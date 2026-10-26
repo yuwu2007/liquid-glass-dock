@@ -1,8 +1,8 @@
 name: Deploy demo to Pages
 
 on:
-  push:
-    branches: [main]
+  # Pages 需要仓库管理员在 Settings → Pages 里把 Source 设为 GitHub Actions 一次；
+  # 之前用 push 自动触发时 configure-pages 因无权限而失败，所以改为手动/可复用调用。
   workflow_dispatch:
 
 permissions:

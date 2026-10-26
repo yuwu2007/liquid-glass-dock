@@ -30,6 +30,8 @@ npm run build    # 产物在 dist/
 
 > 演示页用 Tailwind v4（`@tailwindcss/vite`）。组件里的工具类需要你的项目也有 Tailwind，或把类名替换成自己的 CSS。
 
+> **在线演示**：仓库自带 GitHub Pages 工作流。第一次用需要仓库管理员在 `Settings → Pages → Source` 选 **GitHub Actions** 授权一次，然后到 `Actions → Deploy demo to Pages → Run workflow` 即可（之后可把 `workflow_dispatch` 换回 `push`）。
+
 ## 用法
 
 ### 底栏：玻璃 + 滑块
