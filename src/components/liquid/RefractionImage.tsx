@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import type { CSSProperties, ReactNode, RefObject } from 'react'
 
 /**
  * RefractionImage —— 跨浏览器的"真折射"玻璃（不依赖 backdrop-filter: url()）。
@@ -28,7 +28,9 @@ export default function RefractionImage({
   veil = 0.08,
   saturation = 1,
   specular = 1,
+  lightAngle = -55,
   className = '',
+  style,
   children,
 }: {
   src: string
@@ -49,7 +51,11 @@ export default function RefractionImage({
   saturation?: number
   /** 边缘高光强度 0~1.5 */
   specular?: number
+  /** 高光方位角（度）：-55 = 光源在右上，对称两侧各一弯亮弧 */
+  lightAngle?: number
   className?: string
+  /** 固定尺寸测试（圆形/方块）时传 width/height */
+  style?: CSSProperties
   children?: ReactNode
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -60,6 +66,7 @@ export default function RefractionImage({
   const [box, setBox] = useState({ w: 0, h: 0 })
   const [photoBox, setPhotoBox] = useState({ x: 0, y: 0, w: 0, h: 0 })
   const mapKey = useRef('')
+  const buildTimer = useRef<number | null>(null)
 
   useEffect(() => {
     const el = wrapRef.current
@@ -81,12 +88,16 @@ export default function RefractionImage({
         setPhotoBox({ x: 0, y: 0, w, h })
       }
 
-      const bv = Math.max(8, Math.min(bevel ?? Math.min(w, h) / 4, Math.min(w, h) / 2 - 1, 40))
-      const key = `${w}x${h}:${radius}:${bv}:${strength}:${ior}:${specular}`
+      const bv = Math.max(4, Math.min(bevel ?? Math.min(w, h) / 4, Math.min(w, h) / 2 - 1, 120))
+      const key = `${w}x${h}:${radius}:${bv}:${strength}:${ior}:${specular}:${lightAngle}`
       if (key !== mapKey.current) {
         mapKey.current = key
         setBox({ w, h })
-        setMaps(buildLensMaps(w, h, Math.min(radius, h / 2), bv, strength, ior, specular))
+        // 拖滑杆时一帧可能来几十次：贴图重算做 60ms 防抖，画面上保留上一张
+        if (buildTimer.current) window.clearTimeout(buildTimer.current)
+        buildTimer.current = window.setTimeout(() => {
+          setMaps(buildLensMaps(w, h, Math.min(radius, h / 2), bv, strength, ior, specular, lightAngle))
+        }, 60)
       }
     }
 
@@ -104,8 +115,9 @@ export default function RefractionImage({
       window.removeEventListener('scroll', schedule, true)
       window.removeEventListener('resize', schedule)
       if (raf) cancelAnimationFrame(raf)
+      if (buildTimer.current) window.clearTimeout(buildTimer.current)
     }
-  }, [radius, bevel, strength, ior, specular, backdropRef])
+  }, [radius, bevel, strength, ior, specular, lightAngle, backdropRef])
 
   const { w, h } = box
   const pad = Math.ceil(Math.max(strength, blur * 3, 8))
@@ -114,7 +126,7 @@ export default function RefractionImage({
     <div
       ref={wrapRef}
       className={`relative overflow-hidden ${className}`.trim()}
-      style={{ borderRadius: radius }}
+      style={{ ...style, borderRadius: radius }}
       data-refraction-image
     >
       {w > 0 && maps.disp && (
@@ -185,6 +197,7 @@ function buildLensMaps(
   depth: number,
   ior: number,
   specIntensity: number,
+  lightAngle: number,
 ): { disp: string; spec: string; scale: number } {
   // 超采样：3 倍足够消掉边缘阶梯；面板特别大时降档，避免主线程长时间占用
   let SS = 3
@@ -202,7 +215,7 @@ function buildLensMaps(
   let maxMag = 0
 
   // 水平方向光（Lz=0）：对称两弯亮弧，正是苹果玻璃边的样子
-  const az = (-55 * Math.PI) / 180
+  const az = (lightAngle * Math.PI) / 180
   const Lx = Math.cos(az)
   const Ly = Math.sin(az)
   const shininess = 12

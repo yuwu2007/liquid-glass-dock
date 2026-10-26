@@ -31,9 +31,10 @@ npm run build    # 产物在 dist/
 
 > **在线演示**：仓库自带 GitHub Pages 工作流，首次需在 `Settings → Pages → Source` 选 **GitHub Actions**，再手动跑一次 `Deploy demo to Pages`。
 >
-> 演示页是**单效果**的：一整屏可滚动的长图 + 一个液态玻璃底栏，没有任何对照开关。
-> 长图 `public/bg/scroll.jpg` = 折射校准图（网格/彩线/文字，最容易看出弯折）+ 6 张照片；
-> 拼接原图放在 `artwork/`（不进产物），要换图重新拼一张即可。
+> 演示页是 **playground**：一整屏可滚动长图（折射校准图 + 6 张照片）+ 一块液态玻璃。
+> 右上角「调参」可切换 **圆角卡片 / 胶囊底栏 / 圆形 / 方块**，并实时调整光学厚度、折射环宽、圆角、尺寸、
+> 折射率、模糊、奶白、饱和度、高光、光照角度；调好可直接 **复制 TSX 代码** 或 **复制带参数的分享链接**。
+> 拼接原图放在 `artwork/`（不进产物），要换背景重新拼一张 `public/bg/scroll.jpg` 即可。
 
 ## 用法
 
@@ -88,13 +89,15 @@ const photoRef = useRef<HTMLImageElement>(null)
 | `src` | `string` | 必填 | 背景图，玻璃折射的就是它 |
 | `backdropRef` | `RefObject` | 建议必填 | 页面里那张真实背景图；靠它把玻璃里的画面与背景**逐像素对齐**，滚动时也会重算 |
 | `radius` | `number` | `28` | 圆角 |
-| `bevel` | `number` | 短边/4（封顶 40） | 折射环宽度 |
+| `bevel` | `number` | 短边/4 | 折射环宽度（上限短边的一半） |
 | `strength` | `number` | `34` | 玻璃光学厚度：12 细腻 / 22 标准 / 44 夸张 |
 | `ior` | `number` | `1.5` | 折射率 |
 | `blur` | `number` | `0.5` | 位移前高斯模糊：0.5 高透，**8 左右就是磨砂玻璃**，边缘折射仍保留 |
 | `veil` | `number` | `0.08` | 一层薄奶白（0~1），解决"太透/文字读不清"，0 关闭 |
 | `saturation` | `number` | `1` | 饱和度，`1.15` 与 `GlassPanel` 一致（磨砂后不发灰） |
 | `specular` | `number` | `1` | 边缘高光强度 |
+| `lightAngle` | `number` | `-55` | 高光方位角（度），对称两侧各一弯亮弧 |
+| `style` | `CSSProperties` | — | 固定尺寸测试（圆形/方块）时传 `width`/`height` |
 
 > 想和对面的实时版一样通透：`blur={3} saturation={1.15} veil={0.05} bevel={12}`。演示页底栏用的是 `blur={3} saturation={1.15} veil={0.06} bevel={16} strength={22}`。
 
