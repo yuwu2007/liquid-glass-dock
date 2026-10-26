@@ -25,6 +25,15 @@ const FEED = [
   { title: '把秋天装进杯子里', desc: '图书馆门口那棵银杏终于黄了。' },
   { title: '凌晨四点的自习室', desc: '最后一排的灯一直亮着。' },
   { title: '今日份猫猫出没', desc: '在二食堂后门晒太阳，摸它不跑。' },
+  { title: '雨后的操场', desc: '跑道上全是水洼，倒着整片天。' },
+  { title: '深夜的便利店', desc: '关东煮的汤还在冒热气。' },
+  { title: '图书馆五楼靠窗', desc: '这个位置下午三点最好睡。' },
+  { title: '食堂新窗口', desc: '红烧肉盖饭十四块，值。' },
+  { title: '社团招新', desc: '吉他社在操场边弹了一下午。' },
+  { title: '期末周进度', desc: '第三篇论文，第二杯咖啡。' },
+  { title: '晚课下课', desc: '路灯把影子拉得很长。' },
+  { title: '宿舍阳台', desc: '晾着的被子有太阳的味道。' },
+  { title: '夜跑五公里', desc: '跑到桥上的时候风最舒服。' },
 ]
 
 /** 换背景是看玻璃用的：不同明暗、不同细节的照片，折射出来的边缘完全不一样 */
@@ -78,7 +87,9 @@ export default function App() {
           <img src={photo.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/5 to-black/45" />
 
-          <div className="relative flex h-full flex-col">
+          <div className="relative h-full">
+            {/* 内容自己滚，底栏固定在屏幕上（真机上不滚 = 只能看第一屏） */}
+            <div data-scroll="1" className="h-full overflow-y-auto overscroll-contain pb-[96px]">
             <div className="px-4 pb-2 pt-5 max-sm:pt-14">
               <div className="flex items-center justify-between">
                 <div>
@@ -110,7 +121,7 @@ export default function App() {
               </GlassPanel>
             </div>
 
-            <div className="flex-1 space-y-3 overflow-hidden px-4">
+            <div className="space-y-3 px-4 pb-2">
               {FEED.map(item => (
                 <article
                   key={item.title}
@@ -122,8 +133,10 @@ export default function App() {
               ))}
             </div>
 
-            {/* 底栏：玻璃材质 + 滑块 */}
-            <div className="px-3 pb-3">
+            </div>
+
+            {/* 底栏：玻璃材质 + 滑块（绝对定位在滚动容器之上） */}
+            <div className="absolute inset-x-0 bottom-0 px-3 pb-3">
               <DockGlassSurface>
                 <div className="relative grid grid-cols-5">
                   <DockSlider activeIndex={active} getItem={i => itemRefs.current[i]} />
@@ -207,6 +220,17 @@ export default function App() {
           换一张照片，底栏边缘的折射、染色和高光都会跟着变。
         </p>
       </main>
+
+      {/* ?diag=1：把内核能力摊开，方便别人截图反馈为什么他那边是毛玻璃 */}
+      {new URLSearchParams(location.search).has('diag') && (
+        <div className="fixed inset-x-2 top-2 z-[60] max-h-[40vh] overflow-auto rounded-xl bg-black/85 p-2.5 font-mono text-[0.58rem] leading-4 text-white/90 backdrop-blur">
+          <div>capability: {liquidLensCapability()}</div>
+          <div>supports url(#svg): {String(CSS.supports('backdrop-filter', 'url(#x)') || CSS.supports('-webkit-backdrop-filter', 'url(#x)'))}</div>
+          <div>surface lens: {[...document.querySelectorAll<HTMLElement>('[data-liquid-surface]')].map(e => e.dataset.lens).join(',') || '-'}</div>
+          <div>dpr: {devicePixelRatio} · {innerWidth}×{innerHeight}</div>
+          <div className="mt-1 break-all text-white/70">{navigator.userAgent}</div>
+        </div>
+      )}
     </div>
   )
 }

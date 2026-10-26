@@ -184,10 +184,16 @@ export function liquidLensCapability(): 'full' | 'static' | 'none' {
   // iOS 系（含 iOS 上的 Chrome/Firefox/Edge 套壳，均为 WebKit 内核）
   if (/iPhone|iPad|iPod/i.test(ua) || /CriOS|FxiOS|Edgios/i.test(ua)) return 'none'
   // Android（微信/QQ/微博等 X5 套壳同样是 Android，一并走静态挂载）
-  if (/Android/i.test(ua)) return 'static'
-  if (!/Chrome\/\d+/.test(ua)) return 'none'
   const supports = typeof CSS !== 'undefined' && CSS.supports ? CSS.supports.bind(CSS) : null
   if (!supports) return 'none'
+  // 真正决定能不能折射的是「backdrop-filter 收不收 url(#svg)」，不是 UA。
+  // 小米自带浏览器 / 部分厂商内核 UA 看着是 Chrome，但位移链会被静默丢掉：
+  // 那样玻璃既没有折射、也没有 blur（因为透镜模式下本体 backdrop-filter 被置 none），
+  // 看起来像一块透明塑料。所以先验这一条，不支持就直接落到加厚兜底。
+  const urlChain = supports('backdrop-filter', 'url(#lens-probe)') || supports('-webkit-backdrop-filter', 'url(#lens-probe)')
+  if (/Android/i.test(ua)) return urlChain ? 'static' : 'none'
+  if (!/Chrome\/\d+/.test(ua)) return 'none'
+  if (!urlChain) return 'none'
   return supports('backdrop-filter', 'blur(1px)') || supports('-webkit-backdrop-filter', 'blur(1px)') ? 'full' : 'none'
 }
 
