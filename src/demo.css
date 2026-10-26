@@ -72,3 +72,37 @@ body {
   bottom: -14px;
   border-radius: inherit;
 }
+
+/* ---- 手机视口：把演示页本身当成一台全屏手机 ----
+   桌面上是 390×760 的手机框；到了真机上，页面再套一层框就会把底栏顶到屏幕外面
+   （390×844 下底栏落在 y=850，根本点不到）。所以小屏时直接去掉外框，占满整屏。 */
+/* 桌面隐藏悬浮控制条；小屏在下面的媒体查询里显示 */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  main {
+    max-width: none !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    height: 100dvh;
+  }
+  .phone {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .page-chrome {
+    display: none !important;
+  }
+  .mobile-only {
+    display: flex;
+  }
+}

@@ -56,7 +56,7 @@ export default function App() {
       </div>
 
       <main className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-6 py-9">
-        <header className="flex w-full items-center justify-between">
+        <header className="page-chrome flex w-full items-center justify-between">
           <div>
             <h1 className="m-0 text-[1.35rem] font-extrabold tracking-tight">Liquid Dock</h1>
             <p className="m-0 mt-1 text-[0.8rem] text-neutral-500">
@@ -79,7 +79,7 @@ export default function App() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/5 to-black/45" />
 
           <div className="relative flex h-full flex-col">
-            <div className="px-4 pb-2 pt-5">
+            <div className="px-4 pb-2 pt-5 max-sm:pt-14">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="m-0 text-[0.68rem] uppercase tracking-[0.18em] text-white/65">Campus</p>
@@ -150,8 +150,31 @@ export default function App() {
           </div>
         </div>
 
+        {/* 真机：演示页就是全屏 App，控制条浮在右上角 */}
+        <div className="mobile-only fixed inset-x-0 top-0 z-50 items-center justify-end gap-2 px-3 pt-2">
+          <button
+            type="button"
+            onClick={() => setDark(v => !v)}
+            aria-label="切换深浅"
+            className="grid h-8 w-8 place-items-center rounded-full bg-black/40 text-white ring-1 ring-white/25 backdrop-blur"
+          >
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+          {BACKGROUNDS.map(b => (
+            <button
+              key={b.key}
+              type="button"
+              onClick={() => setBg(b.key)}
+              aria-label={b.label}
+              className={`h-8 w-8 overflow-hidden rounded-full ring-2 ${bg === b.key ? 'ring-white' : 'ring-white/30'}`}
+            >
+              <img src={b.src} alt="" className="h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
+
         {/* 换背景：同一块玻璃，不同底衬 */}
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="page-chrome flex flex-wrap items-center justify-center gap-3">
           <span className="text-[0.74rem] text-neutral-500">换背景看折射</span>
           {BACKGROUNDS.map(b => (
             <button
@@ -169,7 +192,7 @@ export default function App() {
           ))}
         </div>
 
-        <p className="m-0 text-[0.72rem] text-neutral-500">
+        <p className="page-chrome m-0 text-[0.72rem] text-neutral-500">
           当前浏览器光学档位：
           <b className="ml-1 text-neutral-700 dark:text-neutral-200">
             {(() => {
@@ -179,7 +202,7 @@ export default function App() {
           </b>
         </p>
 
-        <p className="m-0 max-w-xl text-center text-[0.75rem] leading-6 text-neutral-500">
+        <p className="page-chrome m-0 max-w-xl text-center text-[0.75rem] leading-6 text-neutral-500">
           拖滑块会跟手，越界时有阻尼橡皮筋；底栏胶囊由真实弹簧仿真驱动，带挤压回弹。
           换一张照片，底栏边缘的折射、染色和高光都会跟着变。
         </p>
