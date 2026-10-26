@@ -2,11 +2,13 @@
 
 **液态玻璃底栏 + 弹簧滑动胶囊 + 可拖拽分段滑块** —— 从一款线上校园社区应用里抽出来的两个交互组件，MIT 开源，无业务依赖。
 
-![浅色](docs/demo-light.png)
+![浅色 + 山林背景](docs/demo-light.png)
 
-| 浅色 | 深色 |
-| --- | --- |
-| ![light](docs/demo-light.png) | ![dark](docs/demo-dark.png) |
+| 浅色 · 山林 | 浅色 · 深海 | 深色 · 山林 |
+| --- | --- | --- |
+| ![light](docs/demo-light.png) | ![deep](docs/demo-deep.png) | ![dark](docs/demo-dark.png) |
+
+演示页底部有三张缩略图可切换底衬照片——玻璃折的是"栏后"的画面，换一张背景，边缘的折射、染色和高光全都不一样。
 
 ---
 
@@ -123,6 +125,7 @@ const TOPICS = [
 - **液态玻璃的位移贴图路线**：来自 Apple 在 2025 年 WWDC 提出的 Liquid Glass 设计语言的公开原理；本仓库的 `buildLiquidLens.ts` 是自研实现（双链 SVG 位移贴图 + CSS gradient mask），没有引入第三方代码。
 - **胶囊的挤压/拉伸**：思路参考 GitHub 上 [`Sabrene-Marie/framer-cursor-component`](https://github.com/Sabrene-Marie/framer-cursor-component) 的做法（形变与瞬时速度成正比），实现是本仓库自己写的弹簧积分。
 - **橡皮筋越界阻尼**：公式沿用 iOS `UIScrollView` 的经典 `1 - 1/(x/tension + 1)`。
+- **演示背景照片**：来自 [Unsplash](https://unsplash.com)（经 [picsum.photos](https://picsum.photos) 分发），仅用于展示折射效果，不随 MIT 许可授权。
 - **第三方依赖**：React / React DOM（MIT）、Vite（MIT）、Tailwind CSS（MIT）、TypeScript（Apache-2.0）、lucide-react 图标（ISC）。
 
 ## License
