@@ -30,6 +30,10 @@ npm run build    # 产物在 dist/
 演示页用 Tailwind v4（`@tailwindcss/vite`）。组件里的工具类需要你的项目也有 Tailwind，或把类名换成自己的 CSS。
 
 > **在线演示**：仓库自带 GitHub Pages 工作流，首次需在 `Settings → Pages → Source` 选 **GitHub Actions**，再手动跑一次 `Deploy demo to Pages`。
+>
+> 演示页是**单效果**的：一整屏可滚动的长图 + 一个液态玻璃底栏，没有任何对照开关。
+> 长图 `public/bg/scroll.jpg` = 折射校准图（网格/彩线/文字，最容易看出弯折）+ 6 张照片；
+> 拼接原图放在 `artwork/`（不进产物），要换图重新拼一张即可。
 
 ## 用法
 
@@ -92,7 +96,7 @@ const photoRef = useRef<HTMLImageElement>(null)
 | `saturation` | `number` | `1` | 饱和度，`1.15` 与 `GlassPanel` 一致（磨砂后不发灰） |
 | `specular` | `number` | `1` | 边缘高光强度 |
 
-> 想和对面的实时版一样通透：`blur={3} saturation={1.15} veil={0.05} bevel={12}`——演示页的「通透」档就是这组。
+> 想和对面的实时版一样通透：`blur={3} saturation={1.15} veil={0.05} bevel={12}`。演示页底栏用的是 `blur={3} saturation={1.15} veil={0.06} bevel={16} strength={22}`。
 
 原理（与 Apple Liquid Glass 的 Web 复现同一套物理，代码为本项目自己实现）：
 
