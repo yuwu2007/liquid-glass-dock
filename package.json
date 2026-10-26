@@ -1,10 +1,10 @@
 {
-  "name": "liquid-dock-ui",
+  "name": "liquid-dock",
   "version": "0.1.0",
   "private": false,
   "type": "module",
   "license": "MIT",
-  "description": "Liquid-glass bottom dock + drag-with-rubber-band slider, extracted from a production campus app.",
+  "description": "Liquid-glass bottom dock with a spring-driven sliding capsule, plus a draggable segmented slider with rubber-band edges.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
