@@ -25,6 +25,7 @@ export default function RefractionImage({
   strength = 34,
   ior = 1.5,
   blur = 0.5,
+  veil = 0.08,
   specular = 1,
   className = '',
   children,
@@ -39,8 +40,10 @@ export default function RefractionImage({
   strength?: number
   /** 折射率，水 1.33、玻璃 1.5、重火石 1.8 */
   ior?: number
-  /** 位移前的预模糊，0.4~0.6 用来吃掉文字边缘的阶梯，不要当磨砂用 */
+  /** 位移前的高斯模糊：0.5 高透；6~10 就是磨砂玻璃，边缘折射仍然保留 */
   blur?: number
+  /** 一层极薄的奶白（0~1）：让玻璃不那么"透得发空"，0 关闭 */
+  veil?: number
   /** 边缘高光强度 0~1.5 */
   specular?: number
   className?: string
@@ -153,11 +156,15 @@ export default function RefractionImage({
         </svg>
       )}
 
-      {/* 只有一道细边，主体高光交给折射/高光贴图 */}
+      {/* 只有一道细边 + 一层薄奶白，主体高光交给折射/高光贴图 */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
-        style={{ borderRadius: radius, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.35)' }}
+        style={{
+          borderRadius: radius,
+          background: veil > 0 ? `rgba(255,255,255,${veil})` : undefined,
+          boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.35)',
+        }}
       />
 
       <div className="relative">{children}</div>

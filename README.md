@@ -87,7 +87,8 @@ const photoRef = useRef<HTMLImageElement>(null)
 | `bevel` | `number` | 短边/4（封顶 40） | 折射环宽度 |
 | `strength` | `number` | `34` | 玻璃光学厚度：12 细腻 / 22 标准 / 44 夸张 |
 | `ior` | `number` | `1.5` | 折射率 |
-| `blur` | `number` | `0.5` | 位移前预模糊（吃阶梯用），不是磨砂 |
+| `blur` | `number` | `0.5` | 位移前高斯模糊：0.5 高透，**8 左右就是磨砂玻璃**，边缘折射仍保留 |
+| `veil` | `number` | `0.08` | 一层薄奶白（0~1），解决"太透/文字读不清"，0 关闭 |
 | `specular` | `number` | `1` | 边缘高光强度 |
 
 原理（与 Apple Liquid Glass 的 Web 复现同一套物理，代码为本项目自己实现）：
