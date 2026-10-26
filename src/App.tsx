@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Bell, Compass, Home, Moon, PenLine, Sun, User } from 'lucide-react'
 import DockGlassSurface from './components/liquid/DockGlassSurface'
 import DockSlider from './components/liquid/DockSlider'
+import GlassPanel from './components/liquid/GlassPanel'
+import { liquidLensCapability } from './components/liquid/buildLiquidLens'
 import TopicSlider from './components/TopicSlider'
 
 const TABS = [
@@ -95,6 +97,19 @@ export default function App() {
               </div>
             </div>
 
+            {/* 一块大玻璃：不是为了导航，纯粹看通透度与边缘折射 */}
+            <div className="px-4 pb-3">
+              <GlassPanel className="px-4 py-3.5">
+                <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Liquid glass</p>
+                <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
+                  通透度演示
+                </p>
+                <p className="m-0 mt-1 text-[0.72rem] leading-5 text-white/75">
+                  面板后面的山脊、树影会从玻璃里透出来，边缘处被折射拉弯。
+                </p>
+              </GlassPanel>
+            </div>
+
             <div className="flex-1 space-y-3 overflow-hidden px-4">
               {FEED.map(item => (
                 <article
@@ -136,7 +151,7 @@ export default function App() {
         </div>
 
         {/* 换背景：同一块玻璃，不同底衬 */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <span className="text-[0.74rem] text-neutral-500">换背景看折射</span>
           {BACKGROUNDS.map(b => (
             <button
@@ -153,6 +168,16 @@ export default function App() {
             </button>
           ))}
         </div>
+
+        <p className="m-0 text-[0.72rem] text-neutral-500">
+          当前浏览器光学档位：
+          <b className="ml-1 text-neutral-700 dark:text-neutral-200">
+            {(() => {
+              const cap = liquidLensCapability()
+              return cap === 'full' ? 'full · 真折射（Chromium SVG 位移链）' : cap === 'static' ? 'static · 折射但滚动时降级（Android WebView）' : 'none · 兜底加厚模糊（iOS / Safari / Firefox）'
+            })()}
+          </b>
+        </p>
 
         <p className="m-0 max-w-xl text-center text-[0.75rem] leading-6 text-neutral-500">
           拖滑块会跟手，越界时有阻尼橡皮筋；底栏胶囊由真实弹簧仿真驱动，带挤压回弹。

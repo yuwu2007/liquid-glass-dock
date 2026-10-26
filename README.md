@@ -19,6 +19,7 @@
 | `DockGlassSurface` | 底栏玻璃材质：真实折射（边缘透镜）+ 模糊 + 主题染色，浅/深色两套光学参数 |
 | `DockSlider` | 底栏「选中胶囊」：**真实弹簧仿真**驱动位移，切换时带挤压/拉伸回弹，首帧无飞入 |
 | `TopicSlider` | 顶部分段滑块：可拖拽、跟手、跨格吸附；**撞到边界走橡皮筋阻尼**，松手回弹 |
+| `GlassPanel` | 同样材质的大块玻璃面板（卡片/浮层用），圆角 28、环宽 5、tint 0.12 |
 
 三个组件都只依赖 `react`（`TopicSlider` 额外用到 `../lib/rubberBand.ts`，20 行纯函数）。演示页的图标来自 `lucide-react`，组件本身不含图标。
 
@@ -103,6 +104,36 @@ const TOPICS = [
 | `hug` | `boolean` | `false` | 配合 `fill`：整条撑满，高亮块只包文字 |
 | `size` | `'compact' \| 'roomy'` | `'compact'` | 外壳档位（21.5px / 30.8px） |
 | `className` | `string` | `''` | 追加类名 |
+
+## 为什么在别人项目里像"一层薄玻璃"
+
+先说结论：**真折射只在 Chromium 内核里成立**，其他环境拿到的是一层原生 `backdrop-filter` 模糊。
+组件会自己在根节点标注状态，排查时先看这两个属性：
+
+```js
+const el = document.querySelector('[data-liquid-surface]')
+el.dataset.lens            // 'on' = 真折射；'off' = 兜底
+el.dataset.lensCapability  // 'full' | 'static' | 'none'
+```
+
+| 环境 | 档位 | 表现 |
+| --- | --- | --- |
+| 桌面 / Android Chrome、Edge、微信 Android 内核 | `full` / `static` | 边缘真折射（`static` 在滚动时降级，避免 WebView 掉帧） |
+| iPhone / iPad 上的一切浏览器（含 Chrome、Firefox 套壳） | `none` | 只有模糊 → 以前的版本就是"薄玻璃" |
+| 桌面 Safari、Firefox | `none` | 同上 |
+
+`0.2.0` 起给 `none` 补了**加厚兜底**（`blur(16px) saturate(180%)` + 内描边 + 投影），
+不再是 6px 模糊的薄雾；但那是"磨砂玻璃"，不是折射。想要折射只有 Chromium 一条路。
+
+除了浏览器，还有四个常见坑会让人以为组件坏了：
+
+1. **后面没有东西可折**：纯白底/纯色底上看不出任何折射。玻璃折的是"栏后"的画面，演示页放三张照片就是这个原因。
+2. **祖先元素有 `backdrop-filter` / `filter` / `transform`**：会生成新的包含块，`backdrop-filter: url(#…)` 采到的背景被换成空画布 → 折射消失。
+3. **全局样式覆盖**：不少 UI 库/reset 会给 `[class*=glass]` 或 `*` 加 `backdrop-filter`，优先级更高时会把位移链顶掉。检查计算样式里是不是还有 `url(#…)`。
+4. **父容器 `overflow: hidden` + 圆角**：采样区（默认外扩 28px）被裁掉，边缘折射直接没了。
+
+**调参入口**：`GlassPanel` 的 `radius` / `DockGlassSurface` 的 `variant`（四套光学剖面）；
+要更"厚"的玻璃，调 `dockLensProfile.ts` 里的 `scale`（折射强度）与 `blend`，以及 `tint`（压暗底色的层厚）。
 
 ## 实现要点（想改参数的人看这里）
 

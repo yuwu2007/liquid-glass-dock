@@ -328,7 +328,14 @@ export default function LiquidSurface({
   const lineFilter = rimActive && !unifiedGlass ? `url(#${idBase}-line-lens)` : ''
 
   return (
-    <div className={rootClassName} data-liquid-surface>
+    // 诊断用：lens=on 才是真折射；off 说明当前浏览器拿不到 SVG 位移链（iOS/FF/Safari），
+    // 此时 CSS 会切到「加厚兜底」以免退化成一层薄雾。见 liquid.css 的 [data-lens="off"]。
+    <div
+      className={rootClassName}
+      data-liquid-surface
+      data-lens={lens.on ? 'on' : 'off'}
+      data-lens-capability={liquidLensCapability()}
+    >
       {/* 垫底兄弟：采集色描边环（默认必须在 glass 之前、同矩形；覆盖层模式则画在玻璃之上，
           不被玻璃本体 blur 二次覆盖，保留真实背景取色。仅 Chromium + ringWidth>0 时挂载） */}
       {Boolean(!rimOverlay && showRim) && (

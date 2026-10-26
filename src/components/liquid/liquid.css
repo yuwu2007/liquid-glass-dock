@@ -143,3 +143,26 @@
 }
 /* 2026-09-27 站长改口径：「不要边框变亮，要边框折射的颜色变亮」→ 深色下 30% 黑内阴影保持原样，
    白内晕（把色环本身点亮）撤销；深色的亮度只从折射链来。 */
+
+/* ---- 无透镜环境的兜底（iOS / Safari / Firefox / 关闭了透镜的实例）----
+   没有 SVG 位移链时，base 只有 blur(6px) saturate(150%)，压在照片上就是"一层薄雾"，
+   这也是把本组件搬到别处看起来像薄玻璃的第一原因。这里把兜底加厚到一个可接受的下限：
+   更强模糊 + 提饱和 + 轻微提亮 + 一圈内描边，视觉上仍是玻璃而不是毛玻璃薄片。
+   真机若想要更厚重，调这几个数值即可（不影响 Chromium 上的真折射）。 */
+[data-liquid-surface][data-lens="off"] > .glass-dock {
+  -webkit-backdrop-filter: blur(16px) saturate(180%) brightness(1.04);
+  backdrop-filter: blur(16px) saturate(180%) brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    0 14px 40px rgba(0, 0, 0, 0.16);
+}
+.dark [data-liquid-surface][data-lens="off"] > .glass-dock {
+  -webkit-backdrop-filter: blur(18px) saturate(160%) brightness(0.92);
+  backdrop-filter: blur(18px) saturate(160%) brightness(0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 14px 40px rgba(0, 0, 0, 0.45);
+}
