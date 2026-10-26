@@ -26,6 +26,7 @@ export default function RefractionImage({
   ior = 1.5,
   blur = 0.5,
   veil = 0.08,
+  saturation = 1,
   specular = 1,
   className = '',
   children,
@@ -44,6 +45,8 @@ export default function RefractionImage({
   blur?: number
   /** 一层极薄的奶白（0~1）：让玻璃不那么"透得发空"，0 关闭 */
   veil?: number
+  /** 饱和度：1 不变，1.15 与站内 GlassPanel 一致（磨砂后颜色不发灰） */
+  saturation?: number
   /** 边缘高光强度 0~1.5 */
   specular?: number
   className?: string
@@ -137,7 +140,8 @@ export default function RefractionImage({
             >
               <feImage href={maps.disp} x={0} y={0} width={w} height={h} preserveAspectRatio="none" result="lens" />
               <feGaussianBlur in="SourceGraphic" stdDeviation={blur} result="soft" />
-              <feDisplacementMap in="soft" in2="lens" scale={maps.scale} xChannelSelector="R" yChannelSelector="G" />
+              <feColorMatrix in="soft" type="saturate" values={String(saturation)} result="sat" />
+              <feDisplacementMap in="sat" in2="lens" scale={maps.scale} xChannelSelector="R" yChannelSelector="G" />
             </filter>
           </defs>
 

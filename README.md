@@ -89,7 +89,10 @@ const photoRef = useRef<HTMLImageElement>(null)
 | `ior` | `number` | `1.5` | 折射率 |
 | `blur` | `number` | `0.5` | 位移前高斯模糊：0.5 高透，**8 左右就是磨砂玻璃**，边缘折射仍保留 |
 | `veil` | `number` | `0.08` | 一层薄奶白（0~1），解决"太透/文字读不清"，0 关闭 |
+| `saturation` | `number` | `1` | 饱和度，`1.15` 与 `GlassPanel` 一致（磨砂后不发灰） |
 | `specular` | `number` | `1` | 边缘高光强度 |
+
+> 想和对面的实时版一样通透：`blur={3} saturation={1.15} veil={0.05} bevel={12}`——演示页的「通透」档就是这组。
 
 原理（与 Apple Liquid Glass 的 Web 复现同一套物理，代码为本项目自己实现）：
 
