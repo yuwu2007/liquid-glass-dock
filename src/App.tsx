@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bell, Compass, Home, Moon, PenLine, Sun, User } from 'lucide-react'
 import DockGlassSurface from './components/liquid/DockGlassSurface'
-import DockSlider from './components/liquid/DockSlider'
 import GlassPanel from './components/liquid/GlassPanel'
+import RefractionImage from './components/liquid/RefractionImage'
 import { liquidLensCapability } from './components/liquid/buildLiquidLens'
-import TopicSlider from './components/TopicSlider'
 
 const TABS = [
   { label: '首页', Icon: Home },
@@ -12,13 +11,6 @@ const TABS = [
   { label: '发现', Icon: Compass },
   { label: '消息', Icon: Bell },
   { label: '我的', Icon: User },
-] as const
-
-const TOPICS = [
-  { key: 'all', label: '全部' },
-  { key: 'hot', label: '热门' },
-  { key: 'follow', label: '关注' },
-  { key: 'qa', label: '问答' },
 ] as const
 
 const FEED = [
@@ -45,8 +37,8 @@ const BACKGROUNDS = [
 
 export default function App() {
   const [active, setActive] = useState(0)
-  const [topic, setTopic] = useState<string>('all')
   const [bg, setBg] = useState<string>(BACKGROUNDS[0].key)
+  const [refract, setRefract] = useState<'backdrop' | 'image'>('backdrop')
   const [optics, setOptics] = useState<'auto' | 'force' | 'compat'>(() => {
     const v = new URLSearchParams(location.search).get('optics')
     return v === 'force' || v === 'compat' ? v : 'auto'
@@ -75,7 +67,7 @@ export default function App() {
           <div>
             <h1 className="m-0 text-[1.35rem] font-extrabold tracking-tight">Liquid Dock</h1>
             <p className="m-0 mt-1 text-[0.8rem] text-neutral-500">
-              液态玻璃底栏 + 弹簧滑动胶囊 + 可拖拽分段滑块（含橡皮筋边界）
+              液态玻璃底栏 + 玻璃面板；含 Chromium 实时折射与全兼容图片折射两条路线
             </p>
           </div>
           <button
@@ -108,23 +100,33 @@ export default function App() {
                   L
                 </span>
               </div>
-
-              <div className="mt-3 rounded-full bg-white/45 p-1 ring-1 ring-white/35 backdrop-blur-lg">
-                <TopicSlider options={TOPICS.map(t => ({ ...t }))} value={topic} onChange={setTopic} fill />
-              </div>
             </div>
 
             {/* 一块大玻璃：不是为了导航，纯粹看通透度与边缘折射 */}
             <div className="px-4 pb-3">
-              <GlassPanel className="px-4 py-3.5" enableLens={lensProp}>
-                <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Liquid glass</p>
-                <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
-                  通透度演示
-                </p>
-                <p className="m-0 mt-1 text-[0.72rem] leading-5 text-white/75">
-                  面板后面的山脊、树影会从玻璃里透出来，边缘处被折射拉弯。
-                </p>
-              </GlassPanel>
+              {refract === 'image' ? (
+                <RefractionImage src={photo.src} radius={26} blur={4} strength={30} className="w-full">
+                  <div className="px-4 py-3.5">
+                    <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Refraction · image</p>
+                    <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
+                      图片折射（全兼容）
+                    </p>
+                    <p className="m-0 mt-1 text-[0.72rem] leading-5 text-white/75">
+                      不用 backdrop-filter：Safari / 微信 / FireFox 也能看到边缘弯折。
+                    </p>
+                  </div>
+                </RefractionImage>
+              ) : (
+                <GlassPanel className="px-4 py-3.5" enableLens={lensProp}>
+                  <p className="m-0 text-[0.6rem] uppercase tracking-[0.22em] text-white/60">Liquid glass</p>
+                  <p className="m-0 mt-1 text-[0.98rem] font-extrabold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
+                    通透度演示
+                  </p>
+                  <p className="m-0 mt-1 text-[0.72rem] leading-5 text-white/75">
+                    面板后面的山脊、树影会从玻璃里透出来，边缘处被折射拉弯。
+                  </p>
+                </GlassPanel>
+              )}
             </div>
 
             <div className="space-y-3 px-4 pb-2">
@@ -145,7 +147,6 @@ export default function App() {
             <div className="absolute inset-x-0 bottom-0 px-3 pb-3">
               <DockGlassSurface enableLens={lensProp}>
                 <div className="relative grid grid-cols-5">
-                  <DockSlider activeIndex={active} getItem={i => itemRefs.current[i]} />
                   {TABS.map(({ label, Icon }, i) => (
                     <button
                       key={label}
@@ -156,7 +157,7 @@ export default function App() {
                       onClick={() => setActive(i)}
                       aria-current={active === i ? 'page' : undefined}
                       className={`relative z-[1] flex h-[58px] flex-col items-center justify-center gap-[3px] text-[0.62rem] transition-colors ${
-                        active === i ? 'font-bold text-[#005BAC]' : 'text-white/90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]'
+                        active === i ? 'font-bold text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.5)]' : 'text-white/70'
                       }`}
                     >
                       <Icon className="h-[19px] w-[19px]" strokeWidth={1.9} />
@@ -181,6 +182,14 @@ export default function App() {
           </button>
           <button
             type="button"
+            onClick={() => setRefract(r => (r === 'backdrop' ? 'image' : 'backdrop'))}
+            className="rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-[0.72rem] text-neutral-700 backdrop-blur transition active:scale-95 dark:border-white/15 dark:bg-white/10 dark:text-white/80"
+            title="backdrop=Chromium 实时折射 / image=图片位移折射（全兼容）"
+          >
+            折射：{refract === 'backdrop' ? 'backdrop 实时' : 'image 全兼容'}
+          </button>
+          <button
+            type="button"
             onClick={() => setOptics(o => (o === 'auto' ? 'force' : o === 'force' ? 'compat' : 'auto'))}
             aria-label="光学模式"
             className="rounded-full bg-black/40 px-2 py-1 text-[0.58rem] text-white ring-1 ring-white/25 backdrop-blur"
@@ -202,6 +211,14 @@ export default function App() {
 
         {/* 换背景：同一块玻璃，不同底衬 */}
         <div className="page-chrome flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setRefract(r => (r === 'backdrop' ? 'image' : 'backdrop'))}
+            className="rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-[0.72rem] text-neutral-700 backdrop-blur transition active:scale-95 dark:border-white/15 dark:bg-white/10 dark:text-white/80"
+            title="backdrop=Chromium 实时折射 / image=图片位移折射（全兼容）"
+          >
+            折射：{refract === 'backdrop' ? 'backdrop 实时' : 'image 全兼容'}
+          </button>
           <button
             type="button"
             onClick={() => setOptics(o => (o === 'auto' ? 'force' : o === 'force' ? 'compat' : 'auto'))}

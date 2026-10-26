@@ -1,10 +1,10 @@
 {
-  "name": "liquid-dock",
+  "name": "liquid-glass-dock",
   "version": "0.1.0",
   "private": false,
   "type": "module",
   "license": "MIT",
-  "description": "Liquid-glass bottom dock with a spring-driven sliding capsule, plus a draggable segmented slider with rubber-band edges.",
+  "description": "Liquid-glass bottom dock and panels, with Chromium SVG refraction plus an image-based refraction fallback that works on Safari, Firefox and WeChat.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

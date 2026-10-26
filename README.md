@@ -1,27 +1,23 @@
-# Liquid Dock
+# Liquid Glass Dock
 
-**液态玻璃底栏 + 弹簧滑动胶囊 + 可拖拽分段滑块** —— 从一款线上校园社区应用里抽出来的两个交互组件，MIT 开源，无业务依赖。
+**液态玻璃底栏 + 玻璃面板**（本包不含滑块）。从一款线上校园社区应用里抽出来的材质实现，MIT 开源。
 
-![浅色 + 山林背景](docs/demo-light.png)
+![浅色](docs/demo-light.png)
 
 | 浅色 · 山林 | 浅色 · 深海 | 深色 · 山林 |
 | --- | --- | --- |
 | ![light](docs/demo-light.png) | ![deep](docs/demo-deep.png) | ![dark](docs/demo-dark.png) |
 
-演示页底部有三张缩略图可切换底衬照片——玻璃折的是"栏后"的画面，换一张背景，边缘的折射、染色和高光全都不一样。
-
----
-
 ## 里面有什么
 
 | 组件 | 说明 |
 | --- | --- |
-| `DockGlassSurface` | 底栏玻璃材质：真实折射（边缘透镜）+ 模糊 + 主题染色，浅/深色两套光学参数 |
-| `DockSlider` | 底栏「选中胶囊」：**真实弹簧仿真**驱动位移，切换时带挤压/拉伸回弹，首帧无飞入 |
-| `TopicSlider` | 顶部分段滑块：可拖拽、跟手、跨格吸附；**撞到边界走橡皮筋阻尼**，松手回弹 |
-| `GlassPanel` | 同样材质的大块玻璃面板（卡片/浮层用），圆角 28、环宽 5、tint 0.12 |
+| `DockGlassSurface` | 底栏玻璃材质：边缘透镜折射 + 模糊 + 主题染色，浅/深两套光学参数 |
+| `GlassPanel` | 同一材质的大块玻璃面板（卡片/浮层用），圆角 28、环宽 5、tint 0.12 |
+| `RefractionImage` | **全兼容折射**：不依赖 `backdrop-filter`，用 SVG 位移滤镜弯曲一张背景图，Safari / Firefox / 微信也能出折射 |
+| `LiquidSurface` | 底层实现：测量、位移贴图生成、滤镜挂载、暗色增量 |
 
-三个组件都只依赖 `react`（`TopicSlider` 额外用到 `../lib/rubberBand.ts`，20 行纯函数）。演示页的图标来自 `lucide-react`，组件本身不含图标。
+> 需要「选中态滑块胶囊」的导航是另一个组件（弹簧滑块），本包有意不包含。
 
 ## 快速开始
 
@@ -31,150 +27,109 @@ npm run dev      # http://localhost:5173
 npm run build    # 产物在 dist/
 ```
 
-> 演示页用 Tailwind v4（`@tailwindcss/vite`）。组件里的工具类需要你的项目也有 Tailwind，或把类名替换成自己的 CSS。
+演示页用 Tailwind v4（`@tailwindcss/vite`）。组件里的工具类需要你的项目也有 Tailwind，或把类名换成自己的 CSS。
 
-> **在线演示**：仓库自带 GitHub Pages 工作流。第一次用需要仓库管理员在 `Settings → Pages → Source` 选 **GitHub Actions** 授权一次，然后到 `Actions → Deploy demo to Pages → Run workflow` 即可（之后可把 `workflow_dispatch` 换回 `push`）。
+> **在线演示**：仓库自带 GitHub Pages 工作流，首次需在 `Settings → Pages → Source` 选 **GitHub Actions**，再手动跑一次 `Deploy demo to Pages`。
 
 ## 用法
 
-### 底栏：玻璃 + 滑块
+### 底栏玻璃
 
 ```tsx
-import { useRef, useState } from 'react'
 import DockGlassSurface from './components/liquid/DockGlassSurface'
-import DockSlider from './components/liquid/DockSlider'
 
-const TABS = [{ label: '首页', Icon: Home }, /* ... */]
-
-export function Dock() {
-  const [active, setActive] = useState(0)
-  const itemRefs = useRef<(HTMLElement | null)[]>([])
-
-  return (
-    <DockGlassSurface>
-      <div className="relative grid grid-cols-5">
-        {/* 必须放在格子容器的第一个子节点 */}
-        <DockSlider activeIndex={active} getItem={i => itemRefs.current[i]} />
-        {TABS.map(({ label, Icon }, i) => (
-          <button
-            key={label}
-            ref={el => { itemRefs.current[i] = el }}
-            onClick={() => setActive(i)}
-            className="relative z-[1] flex h-[58px] flex-col items-center justify-center gap-[3px] text-[0.62rem]"
-          >
-            <Icon className="h-[19px] w-[19px]" />
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-    </DockGlassSurface>
-  )
-}
+<DockGlassSurface>
+  <div className="relative grid grid-cols-5">{/* 5 个 tab */}</div>
+</DockGlassSurface>
 ```
-
-`DockSlider` 参数：
 
 | 参数 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `activeIndex` | `number` | 必填 | 激活格子下标；`-1` 隐藏胶囊与光晕 |
-| `getItem` | `(i) => HTMLElement \| null` | 必填 | 读取格子元素（父组件持有 ref 数组，组件不建注册机制） |
-| `inset` | `number` | `7` | 胶囊两端相对格子宽度的内缩，避免贴到圆角 |
+| `variant` | `'current' \| 'local' \| 'local-tuned' \| 'fine'` | `local-tuned` | 四套光学剖面，线上在用的是 `local-tuned` |
+| `enableLens` | `'auto' \| boolean` | `'auto'` | `true` 强制挂折射链、`false` 只走兼容磨砂 |
 
-`DockGlassSurface` 参数：`variant?: 'current' | 'local' | 'local-tuned' | 'fine'`（默认 `local-tuned`，线上在用的那套光学剖面）、`children`。
-
-### 分段滑块
+### 玻璃面板
 
 ```tsx
-import TopicSlider from './components/TopicSlider'
+import GlassPanel from './components/liquid/GlassPanel'
 
-const TOPICS = [
-  { key: 'all', label: '全部' },
-  { key: 'hot', label: '热门' },
-] as const
+<GlassPanel className="px-4 py-3.5" radius={26}>
+  <p className="text-white">通透度演示</p>
+</GlassPanel>
+```
 
-<TopicSlider options={TOPICS.map(t => ({ ...t }))} value={topic} onChange={setTopic} fill />
+### 全兼容图片折射
+
+```tsx
+import RefractionImage from './components/liquid/RefractionImage'
+
+<RefractionImage src="/photo.jpg" radius={26} strength={26} className="w-full">
+  <div className="px-4 py-3">内容</div>
+</RefractionImage>
 ```
 
 | 参数 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `options` | `{ key, label }[]` | 必填 | 选项 |
-| `value` | `string` | 必填 | 当前值 |
-| `onChange` | `(v) => void` | 必填 | 切换回调 |
-| `fill` | `boolean` | `false` | 选项 `flex-1` 均分撑满外层 |
-| `hug` | `boolean` | `false` | 配合 `fill`：整条撑满，高亮块只包文字 |
-| `size` | `'compact' \| 'roomy'` | `'compact'` | 外壳档位（21.5px / 30.8px） |
-| `className` | `string` | `''` | 追加类名 |
+| `src` | `string` | 必填 | 背景图，玻璃折射的就是它 |
+| `radius` | `number` | `28` | 圆角 |
+| `strength` | `number` | `22` | 边缘位移强度（px），越大越"厚"，过大会糊 |
+| `className` / `children` | — | — | 外层类名 / 面板内容 |
+
+原理：把背景图当作采样源，用 `feDisplacementMap` 按圆角矩形法线把边缘像素往里推。
+`feDisplacementMap` 在 Safari / Firefox / 微信 X5 都支持——**不兼容的只是 `backdrop-filter` 收不收 `url()`**。
 
 ## 为什么在别人项目里像"一层薄玻璃"
 
-先说结论：**真折射只在 Chromium 内核里成立**，其他环境拿到的是一层原生 `backdrop-filter` 模糊。
-组件会自己在根节点标注状态，排查时先看这两个属性：
+实时折射（折的是页面真实合成内容）**只有 Chromium 内核成立**。组件在根节点标注了状态，排查先看：
 
 ```js
 const el = document.querySelector('[data-liquid-surface]')
-el.dataset.lens            // 'on' = 真折射；'off' = 兜底
+el.dataset.lens            // 'on' = 真折射；'off' = 兼容磨砂
 el.dataset.lensCapability  // 'full' | 'static' | 'none'
 ```
 
 | 环境 | 档位 | 表现 |
 | --- | --- | --- |
-| 桌面 / Android Chrome、Edge、微信 Android 内核 | `full` / `static` | 边缘真折射（`static` 在滚动时降级，避免 WebView 掉帧） |
-| iPhone / iPad 上的一切浏览器（含 Chrome、Firefox 套壳） | `none` | 只有模糊 → 以前的版本就是"薄玻璃" |
+| 桌面 / 安卓 Chrome、Edge | `full` | 实时真折射 |
+| 安卓厂商浏览器、微信 Android | `static` 或 `none` | 支持时折射；`url(#svg)` 被内核丢掉时落兜底 |
+| iPhone / iPad 上的一切浏览器 | `none` | WebKit 不支持 → 兼容磨砂（要折射请用 `RefractionImage`） |
 | 桌面 Safari、Firefox | `none` | 同上 |
 
-`0.2.0` 起给 `none` 补了**加厚兜底**（`blur(16px) saturate(180%)` + 内描边 + 投影），
-不再是 6px 模糊的薄雾；但那是"磨砂玻璃"，不是折射。想要折射只有 Chromium 一条路。
+兜底档是加厚磨砂：`blur(16~18px) saturate(160~180%)` + 内阴影 + 镜面高光，不会退化成薄雾。
 
-除了浏览器，还有四个常见坑会让人以为组件坏了：
+除内核外还有四个常见坑：背景是纯色（没东西可折）、祖先带 `filter`/`transform`/`backdrop-filter`（换了采样画布）、全局 CSS 覆盖了 `backdrop-filter`、父容器 `overflow:hidden` 裁掉外扩采样区。
 
-1. **后面没有东西可折**：纯白底/纯色底上看不出任何折射。玻璃折的是"栏后"的画面，演示页放三张照片就是这个原因。
-2. **祖先元素有 `backdrop-filter` / `filter` / `transform`**：会生成新的包含块，`backdrop-filter: url(#…)` 采到的背景被换成空画布 → 折射消失。
-3. **全局样式覆盖**：不少 UI 库/reset 会给 `[class*=glass]` 或 `*` 加 `backdrop-filter`，优先级更高时会把位移链顶掉。检查计算样式里是不是还有 `url(#…)`。
-4. **父容器 `overflow: hidden` + 圆角**：采样区（默认外扩 28px）被裁掉，边缘折射直接没了。
+## 实现要点
 
-**调参入口**：`GlassPanel` 的 `radius` / `DockGlassSurface` 的 `variant`（四套光学剖面）；
-要更"厚"的玻璃，调 `dockLensProfile.ts` 里的 `scale`（折射强度）与 `blend`，以及 `tint`（压暗底色的层厚）。
-
-## 实现要点（想改参数的人看这里）
-
-**橡皮筋**（`src/lib/rubberBand.ts`）：`1 - 1 / (x / tension + 1)`。前 1px 几乎完全跟手，越拉越沉，渐近上限、正负对称、严格单调。`TopicSlider` 把越界量再乘一个上限（34px）与张力，松手用 `cubic-bezier(0.18, 1.32, 0.36, 1)` 380ms 回弹；边界内切换是 260ms。
-
-**底栏胶囊**：`useLayoutEffect` 里在 paint 前测量格子位置，首帧即落位；切换时不走 CSS transition，而是跑弹簧积分（位移 + 速度），相邻格快速连点时由弹簧自然产生挤压与过冲。容器尺寸变化（横竖屏、字体缩放）会重新测量。
-
-**玻璃折射**：`buildLiquidLens.ts` 为一组圆角矩形边缘生成位移图，`LiquidSurface` 用它驱动 `backdrop-filter`；暗色增量单独走 `darkProfile`，避免浅色折射把深色底冲淡。
-
-**安全区**：底栏内边距吃 `--sat` / `--sab`（演示页为 0），真机 `viewport-fit=cover` 下自动避让。
+- **测量**：`useLayoutEffect` 在 paint 前量尺寸，首帧即正确；`ResizeObserver` 负责尺寸变化后重测。
+- **位移贴图**：`buildLiquidLens.ts` 为圆角矩形边缘生成位移图；采样环用 CSS `gradient mask` 剪出（`image-mask` / `feComposite` 在 Chromium 上会被裁掉）。
+- **暗色增量**：`darkProfile` 单独覆盖，避免浅色折射把深色底冲淡。
+- **安全区**：组件不写死内边距，由使用方按 `--sat` / `--sab` 处理。
 
 ## 浏览器
 
-`backdrop-filter` + SVG filter 位移图。Chrome / Edge / Safari 16.4+ / 移动端 ArkWeb、微信内置浏览器均可；不支持时会退化为半透明磨砂底（布局与交互不受影响）。
+Chromium（桌面与安卓）走实时折射；Safari / Firefox / 微信落兼容磨砂；需要全平台折射时用 `RefractionImage` + 图片/视频背景。
 
 ## 灵感与致谢
 
-代码全部为本仓库原创（从线上产品里抽出来的实现），但**技术思路不是凭空来的**，这几处明确致敬：
+代码为本仓库原创（从线上产品抽出），技术思路并非凭空：
 
-- **液态玻璃的位移贴图路线**：来自 Apple 在 2025 年 WWDC 提出的 Liquid Glass 设计语言的公开原理；本仓库的 `buildLiquidLens.ts` 是自研实现（双链 SVG 位移贴图 + CSS gradient mask），没有引入第三方代码。
-- **胶囊的挤压/拉伸**：思路参考 GitHub 上 [`Sabrene-Marie/framer-cursor-component`](https://github.com/Sabrene-Marie/framer-cursor-component) 的做法（形变与瞬时速度成正比），实现是本仓库自己写的弹簧积分。
-- **橡皮筋越界阻尼**：公式沿用 iOS `UIScrollView` 的经典 `1 - 1/(x/tension + 1)`。
-- **演示背景照片**：来自 [Unsplash](https://unsplash.com)（经 [picsum.photos](https://picsum.photos) 分发），仅用于展示折射效果，不随 MIT 许可授权。
+- **液态玻璃的位移贴图路线**：来自 Apple 2025 WWDC 的 Liquid Glass 设计语言的公开原理；本仓库为自研实现。
+- **演示背景照片**：来自 [Unsplash](https://unsplash.com)（经 [picsum.photos](https://picsum.photos) 分发），仅用于展示折射效果，不随 MIT 授权。
 - **第三方依赖**：React / React DOM（MIT）、Vite（MIT）、Tailwind CSS（MIT）、TypeScript（Apache-2.0）、lucide-react 图标（ISC）。
 
 ## License
 
-MIT © 2026 Liquid Dock contributors
+MIT © 2026 Liquid Glass Dock contributors
 
 ---
 
 ## English
 
-A compact, production-extracted pair of interaction components: a **liquid-glass bottom dock** with a **spring-driven selection capsule**, and a **draggable segmented slider with rubber-band edges**.
+A liquid-glass **bottom dock** and **glass panels**, extracted from a production campus app.
 
-```bash
-npm install && npm run dev
-```
+- `DockGlassSurface` — edge-lens refraction + blur + theme tint (light/dark profiles).
+- `GlassPanel` — same material as a large card (radius 28, rim 5, tint 0.12).
+- `RefractionImage` — real edge refraction **without** `backdrop-filter: url()`: an SVG displacement filter bends the backdrop image, so it also works in Safari, Firefox and WeChat.
 
-- `DockGlassSurface` — real edge-lens refraction + blur + theme tint (light/dark profiles).
-- `DockSlider` — capsule position driven by an actual spring integrator (no CSS transition), so fast taps squash and overshoot naturally.
-- `TopicSlider` — pointer-drag, snap per segment, damped overshoot beyond bounds, spring-back on release.
-
-No business logic, no data layer. Only React + Tailwind utility classes. MIT licensed.
+Live refraction of arbitrary scrolling DOM is Chromium-only; elsewhere the component degrades to a thick frosted material. No slider/segmented control is included. MIT licensed.
