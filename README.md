@@ -116,6 +116,15 @@ const TOPICS = [
 
 `backdrop-filter` + SVG filter 位移图。Chrome / Edge / Safari 16.4+ / 移动端 ArkWeb、微信内置浏览器均可；不支持时会退化为半透明磨砂底（布局与交互不受影响）。
 
+## 灵感与致谢
+
+代码全部为本仓库原创（从线上产品里抽出来的实现），但**技术思路不是凭空来的**，这几处明确致敬：
+
+- **液态玻璃的位移贴图路线**：来自 Apple 在 2025 年 WWDC 提出的 Liquid Glass 设计语言的公开原理；本仓库的 `buildLiquidLens.ts` 是自研实现（双链 SVG 位移贴图 + CSS gradient mask），没有引入第三方代码。
+- **胶囊的挤压/拉伸**：思路参考 GitHub 上 [`Sabrene-Marie/framer-cursor-component`](https://github.com/Sabrene-Marie/framer-cursor-component) 的做法（形变与瞬时速度成正比），实现是本仓库自己写的弹簧积分。
+- **橡皮筋越界阻尼**：公式沿用 iOS `UIScrollView` 的经典 `1 - 1/(x/tension + 1)`。
+- **第三方依赖**：React / React DOM（MIT）、Vite（MIT）、Tailwind CSS（MIT）、TypeScript（Apache-2.0）、lucide-react 图标（ISC）。
+
 ## License
 
 MIT © 2026 Liquid Dock contributors
