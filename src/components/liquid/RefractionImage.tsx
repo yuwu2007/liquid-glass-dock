@@ -221,10 +221,6 @@ function buildLensMaps(
   const Ly = Math.sin(az)
   const shininess = 12
 
-  // 位移剖面先在 1D 上算好并**限斜率**：相邻像素的位移差一旦超过间距，
-  // 取样场就会折叠，同一行内容被重复抽出来——看起来就是"一条横线一条横线"。
-  const prof = buildProfile(bevel, depth, ior, TAPER)
-
   for (let y = 0; y < sh; y++) {
     for (let x = 0; x < sw; x++) {
       const cx = (x + 0.5) / SS - halfW
@@ -242,8 +238,11 @@ function buildLensMaps(
       const theta1 = Math.atan(slope)
 
       const innerFade = smoothstep((bevel - dist) / TAPER)
-      const outerFade = smoothstep(dist)
-      const mag = sampleProfile(prof, dist, bevel)
+      // 外缘羽化放宽到 1.5px：折射峰不那么尖，横带感明显减弱，但峰值保留
+      const outerFade = smoothstep(dist / 1.5)
+      const sinT2 = Math.sin(theta1) / ior
+      const theta2 = Math.asin(Math.min(1, Math.max(-1, sinT2)))
+      const mag = Math.tan(theta1 - theta2) * depth * innerFade * outerFade
 
       const eps = 1
       const gx = sdRoundRect(cx + eps, cy, halfW, halfH, r) - sdRoundRect(cx - eps, cy, halfW, halfH, r)
@@ -306,42 +305,6 @@ function buildLensMaps(
 function smoothstep(t: number): number {
   const x = Math.min(1, Math.max(0, t))
   return x * x * (3 - 2 * x)
-}
-
-/**
- * 1D 位移剖面（CSS px 分辨率）：凸面 squircle + 斯涅尔折射，两端羽化。
- * 再做斜率限幅（≤0.9 px/px）：位移梯度大于 1 意味着取样场折叠，
- * 同一段背景被重复抽取，视觉上就是一圈圈横带/重影。
- */
-function buildProfile(bevel: number, depth: number, ior: number, taper: number): Float32Array {
-  const steps = Math.max(32, Math.ceil(bevel * 2))
-  const prof = new Float32Array(steps + 1)
-  for (let i = 0; i <= steps; i++) {
-    const dist = (i / steps) * bevel
-    const t = Math.max(dist / bevel, 0.02)
-    const u = 1 - t
-    const u4 = u * u * u * u
-    const slope = (u * u * u) / Math.pow(1 - u4, 0.75)
-    const theta1 = Math.atan(slope)
-    const sinT2 = Math.sin(theta1) / ior
-    const theta2 = Math.asin(Math.min(1, Math.max(-1, sinT2)))
-    prof[i] =
-      Math.tan(theta1 - theta2) * depth * smoothstep((bevel - dist) / taper) * smoothstep(dist)
-  }
-  let maxSlope = 0
-  for (let i = 1; i <= steps; i++) {
-    maxSlope = Math.max(maxSlope, Math.abs(prof[i] - prof[i - 1]) / (bevel / steps))
-  }
-  const cap = maxSlope > 0.9 ? 0.9 / maxSlope : 1
-  if (cap < 1) for (let i = 0; i <= steps; i++) prof[i] *= cap
-  return prof
-}
-
-function sampleProfile(prof: Float32Array, dist: number, bevel: number): number {
-  const pos = (dist / bevel) * (prof.length - 1)
-  const i = Math.min(prof.length - 2, Math.max(0, Math.floor(pos)))
-  const f = Math.min(1, Math.max(0, pos - i))
-  return prof[i] * (1 - f) + prof[i + 1] * f
 }
 
 function clamp(v: number): number {
