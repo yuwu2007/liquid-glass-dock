@@ -1,12 +1,10 @@
 # Liquid Glass Dock
 
-**液态玻璃底栏 + 玻璃面板**（本包不含滑块）。从一款线上校园社区应用里抽出来的材质实现，MIT 开源。
+**液态玻璃底栏 + 玻璃面板**。从一款线上校园社区应用里抽出来的材质实现，MIT 开源。
 
-![浅色](docs/demo-light.png)
-
-| 浅色 · 山林 | 浅色 · 深海 | 深色 · 山林 |
-| --- | --- | --- |
-| ![light](docs/demo-light.png) | ![deep](docs/demo-deep.png) | ![dark](docs/demo-dark.png) |
+| 图片折射 · 圆角玻璃卡片 | 实时页面折射 · 胶囊底栏 |
+| --- | --- |
+| ![圆角玻璃卡片](docs/glass-card.webp) | ![胶囊玻璃底栏](docs/glass-live.webp) |
 
 ## 里面有什么
 
@@ -16,8 +14,6 @@
 | `GlassPanel` | 同一材质的大块玻璃面板（卡片/浮层用），圆角 28、环宽 5、tint 0.12 |
 | `RefractionImage` | **全兼容折射**：不依赖 `backdrop-filter`，用 SVG 位移滤镜弯曲一张背景图，Safari / Firefox / 微信也能出折射 |
 | `LiquidSurface` | 底层实现：测量、位移贴图生成、滤镜挂载、暗色增量 |
-
-> 需要「选中态滑块胶囊」的导航是另一个组件（弹簧滑块），本包有意不包含。
 
 ## 该用哪一套？（按浏览器 / 按背景）
 
@@ -268,4 +264,4 @@ A liquid-glass **bottom dock** and **glass panels**, extracted from a production
 - `GlassPanel` — same material as a large card (radius 28, rim 5, tint 0.12).
 - `RefractionImage` — real edge refraction **without** `backdrop-filter: url()`: an SVG displacement filter bends the backdrop image, so it also works in Safari, Firefox and WeChat.
 
-Live refraction of arbitrary scrolling DOM is Chromium-only; elsewhere the component degrades to a thick frosted material. No slider/segmented control is included. MIT licensed.
+Live refraction of arbitrary scrolling DOM is Chromium-only; elsewhere the component degrades to a thick frosted material. MIT licensed.

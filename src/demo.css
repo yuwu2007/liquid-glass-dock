@@ -59,20 +59,6 @@ body {
     radial-gradient(54% 30% at 50% 78%, rgba(255, 205, 106, 0.5), transparent 74%);
 }
 
-/* 分段滑块的触控热区：视觉高度只有 17.5px，上下各撑 14px 才够 44px */
-.topic-slider-hot {
-  position: relative;
-}
-.topic-slider-hot::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -14px;
-  bottom: -14px;
-  border-radius: inherit;
-}
-
 /* ---- 手机视口：把演示页本身当成一台全屏手机 ----
    桌面上是 390×760 的手机框；到了真机上，页面再套一层框就会把底栏顶到屏幕外面
    （390×844 下底栏落在 y=850，根本点不到）。所以小屏时直接去掉外框，占满整屏。 */

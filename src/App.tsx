@@ -369,7 +369,7 @@ ${lines}
                 当前浏览器：{capability === 'none' ? '磨砂兜底（无实时折射）' : capability === 'static' ? '支持实时折射 · 移动端模式' : '支持实时折射 · 桌面模式'}
               </p>
               <p className="m-0 mt-2 text-[11px] leading-4 text-neutral-500">
-                折射强弱调 <code>pull / endPull</code>，可见折射宽度调 <code>band / endBand</code>。只保留当前 <code>local-tuned</code> 链里实测有效的 13 项；<code>scale</code>、<code>rimSmooth</code>、<code>ringWidth</code> 和本预设下不生效的 <code>endReach</code> 不放滑块。
+                折射强弱调 <code>pull / endPull</code>，可见折射宽度调 <code>band / endBand</code>。只保留当前 <code>local-tuned</code> 链里实测有效的 13 项；<code>scale</code>、<code>rimSmooth</code>、<code>ringWidth</code> 和本预设下不生效的 <code>endReach</code> 不开放调参。
               </p>
               <div className="mt-3 space-y-2.5">
                 <Slider label="直边唇宽 band" value={liveParams.band} min={3} max={30} step={0.5} unit="px" onChange={v => setLive('band', v)} />
