@@ -57,7 +57,9 @@ npm run build    # 产物在 dist/
 
 演示页用 Tailwind v4（`@tailwindcss/vite`）。组件里的工具类需要你的项目也有 Tailwind，或把类名换成自己的 CSS。
 
-> **在线演示**：仓库自带 GitHub Pages 工作流，首次需在 `Settings → Pages → Source` 选 **GitHub Actions**，再手动跑一次 `Deploy demo to Pages`。
+> **在线演示**：https://yuwu2007.github.io/liquid-glass-dock/ （GitHub Pages 自动部署，push 到 `main` 即更新）
+>
+> 自托管：仓库自带 GitHub Pages 工作流，首次需在 `Settings → Pages → Source` 选 **GitHub Actions**。
 >
 > 演示页是 **playground**：一整屏可滚动长图（折射校准图 + 6 张照片）+ 一块液态玻璃。
 > 右上角「调参」可切换 **圆角卡片 / 胶囊底栏 / 圆形 / 方块**，并实时调整光学厚度、折射环宽、圆角、尺寸、
