@@ -98,7 +98,7 @@ function readLensScrollPolicy(): LensScrollPolicy {
 }
 
 /**
- * 玻璃磨砂程度临时覆盖：`?blur=4~20`（stdDeviation，越大越糊）。
+ * 玻璃磨砂程度临时覆盖：`?lensBlur=4~20`（stdDeviation，越大越糊）。
  * 用途：站长在真机上把模糊调到满意，再把这个数写回 DEFAULT_LENS_PROFILE.blur。
  * ⚠️ 只影响「走位移链的玻璃」（底栏这种 scale>0 的）；顶栏/我的活动页是 scale=0 +
  * 自己 inline 的 blur(5px)，不受此参数影响。
@@ -106,7 +106,7 @@ function readLensScrollPolicy(): LensScrollPolicy {
 function readBlurOverride(): number | null {
   if (typeof window === 'undefined') return null
   try {
-    const raw = new URLSearchParams(window.location.search).get('blur')
+    const raw = new URLSearchParams(window.location.search).get('lensBlur')
     if (raw == null) return null
     const v = Number(raw)
     if (Number.isFinite(v) && v > 0) return Math.min(20, Math.max(1, v))
@@ -161,7 +161,7 @@ export default function LiquidSurface({
   const scrollPolicyRef = useRef<LensScrollPolicy | null>(null)
   if (scrollPolicyRef.current === null) scrollPolicyRef.current = readLensScrollPolicy()
   const scrollPolicy = scrollPolicyRef.current
-  // 模糊度临时覆盖（URL 参数：?blur=4~20），同样只读一次
+  // 模糊度临时覆盖（URL 参数：?lensBlur=4~20），同样只读一次；避免与图片引擎的 blur 参数冲突
   const blurRef = useRef<number | null | undefined>(undefined)
   if (blurRef.current === undefined) blurRef.current = readBlurOverride()
   const blurOverride = blurRef.current

@@ -21,31 +21,31 @@
 
 ## 该用哪一套？（按浏览器 / 按背景）
 
-一句话：**原版折射的是「真实页面」，全兼容折射的是「一张图」。** 先看背景，再看浏览器。
+一句话：**实时页面折射折的是「真实页面」，全兼容图片折射折的是「一张图」。** 先看背景，再看浏览器。
 
 ### 按浏览器
 
 | 浏览器 / 环境 | 推荐 | 原因 |
 | --- | --- | --- |
-| Chrome、Edge、Android 浏览器、Android 微信（Chromium） | **原版 `DockGlassSurface`** | `backdrop-filter: url()` 可用，直接折射真实 DOM，效果最好、性能最省 |
-| iPhone / iPad 的 Safari、iOS 微信、iOS 上的一切浏览器（WebKit） | **全兼容 `RefractionImage`** | WebKit 不支持对 backdrop 挂 SVG 滤镜，原版在这里只能落回磨砂 |
+| Chrome、Edge、Android 浏览器、Android 微信（Chromium） | **实时页面折射 `DockGlassSurface`** | `backdrop-filter: url()` 可用，直接折射真实 DOM，效果最好、性能最省 |
+| iPhone / iPad 的 Safari、iOS 微信、iOS 上的一切浏览器（WebKit） | **全兼容 `RefractionImage`** | WebKit 不支持对 backdrop 挂 SVG 滤镜，实时页面折射在这里只能落回磨砂 |
 | 桌面 Safari 17.2+ | **全兼容 `RefractionImage`** | 同上；对元素本身应用 `filter: url()` 是支持的 |
 | Firefox | **全兼容 `RefractionImage`** | Firefox 对 backdrop 挂滤镜支持不全，全兼容走 SVG 元素滤镜 |
-| 不支持 SVG 滤镜的老环境 | 磨砂兜底 | `RefractionImage` 自带 `feImage` 探测，失败会去掉滤镜只留柔光；原版也有 `blur()` 兜底 |
+| 不支持 SVG 滤镜的老环境 | 磨砂兜底 | `RefractionImage` 自带 `feImage` 探测，失败会去掉滤镜只留柔光；实时页面折射也有 `blur()` 兜底 |
 
 ### 按背景类型（这一条比浏览器更关键）
 
 | 玻璃后面的内容 | 该用 |
 | --- | --- |
-| 帖子流、文字列表、卡片、视频等**活 DOM** | **只能原版**。全兼容折不了 DOM，除非你先把它栅格化成图（不推荐在主流程里这么做） |
+| 帖子流、文字列表、卡片、视频等**活 DOM** | **只能实时页面折射**。全兼容折不了 DOM，除非你先把它栅格化成图（不推荐在主流程里这么做） |
 | **一张图**：落地页头图、活动页、登录页、照片墙、图片背景卡片 | **全兼容**，iOS / 微信也能看到边缘弯折 |
 
 ### 各自代价
 
-- **原版**：真实、自动跟随内容变化、原生合成器性能好、暗色参数齐全；但非 Chromium 没有真折射。
+- **实时页面折射**：真实、自动跟随内容变化、原生合成器性能好、暗色参数齐全；但非 Chromium 没有真折射。
 - **全兼容**：覆盖面广、独立组件可移植；但位移贴图靠主线程逐像素计算，滚动时滤镜要重绘，低端机更吃力，且观感是近似。
 
-实际项目里常见的搭配是：**主 App 底栏用原版，图片类页面用全兼容**，而不是互相替代。
+实际项目里常见的搭配是：**主 App 底栏用实时页面折射，图片类页面用全兼容**，而不是互相替代。
 
 ## 快速开始
 
@@ -64,8 +64,9 @@ npm run build    # 产物在 dist/
 > 演示页是 **playground**：一整屏可滚动长图（折射校准图 + 6 张照片）+ 一块液态玻璃。
 > 右上角「调参」可切换 **圆角卡片 / 胶囊底栏 / 圆形 / 方块**，并实时调整光学厚度、折射环宽、圆角、尺寸、
 > 折射率、模糊、奶白、饱和度、高光、光照角度；调好可直接 **复制 TSX 代码** 或 **复制带参数的分享链接**。
-> 另有 **「线上原版（实时）」** 引擎：`DockGlassSurface` 默认 `local-tuned` 材质的真实参数与代码，
-> 用来和全兼容版对照（它只在 Chromium 出真折射）。
+> **「实时页面折射」** 引擎也已开放调参：折射强度、直边/圆角唇宽与采样、弯曲指数、
+> 模糊、饱和度、高光、奶白等 13 项都直接作用于 `DockGlassSurface`，
+> 并支持复制当前 TSX 和分享链接；面板会明确显示当前浏览器是实时折射还是磨砂兜底。
 > 拼接原图放在 `artwork/`（不进产物），要换背景重新拼一张 `public/bg/scroll.jpg` 即可。
 
 ## 用法
@@ -80,10 +81,73 @@ import DockGlassSurface from './components/liquid/DockGlassSurface'
 </DockGlassSurface>
 ```
 
+### 实时页面折射具体怎么工作
+
+它**不是截图、不需要背景图，也不是把页面内容复制一份**。调用链是：
+
+1. `DockGlassSurface` 提供底栏布局、`local-tuned` 浅色预设和深色覆盖参数。
+2. `LiquidSurface` 测量玻璃的宽、高、圆角，生成位移贴图与 SVG 滤镜。
+3. 通过 `backdrop-filter: url(#…)` 让浏览器直接采样玻璃后面的**真实 backdrop**：文字、帖子、图片、视频都算。
+4. 页面滚动或 DOM 内容变化后，浏览器下一帧采到的就是新内容；组件不需要重新截图，也不需要你同步一张背景图。
+5. 默认 `enableLens="auto"` 会检测 `backdrop-filter` 是否接受 `url()`。支持才挂真折射；不支持就走加厚磨砂，而不是硬挂一条无效滤镜。
+
+所以它和 `RefractionImage` 的区别不是「谁更高级」，而是**采样源不同**：一个采样真实页面，一个采样指定图片。两套组件也不会偷偷自动互换，使用时仍需按背景类型选择。
+
+#### 支持边界与排查
+
+- Chromium 支持时根节点是 `data-lens="on"`；`data-lens-capability` 为 `full`（桌面）或 `static`（Android / 移动 Chromium）。
+- iPhone / iPad（包括 iOS 上的 Chrome）、iOS 微信、Firefox 等不支持环境为 `data-lens="off"`，使用浅色 `blur(16px)` / 深色 `blur(18px)` 的加厚磨砂兜底。
+- **演示页不要传 `enableLens={true}` 来假装兼容**：`true` 是强制挂载的调试开关；正常业务用默认 `auto`。
+- `pull` / `endPull` 才是这条统一边缘链的折射采样距离（强弱）；`band` / `endBand` 控制可见唇宽。
+- `scale` 在统一边缘模式中只决定主折射链是否启用，**数值大小不改变位移幅度**；`rimSmooth` 只服务旧的独立采集环；`ringWidth` 在这里主要是唇宽下限与开关，不是独立可见色环。
+- 默认预设还有 `localEndArc: true`，圆角权重只落在朝侧面的法线区域；此时 `endReach` 取任何正值都生成相同贴图。以上四项均不放进演示面板，避免假调参。
+- `blur`、`sigma`、`rimSmooth` 不是一回事，见下表。
+
+#### 默认 `local-tuned` 参数
+
+| 参数 | 默认值 | 管什么 |
+| --- | --- | --- |
+| `scale` | `0.12` | 统一边缘模式中仅作为主链开关；位移强弱看 `pull / endPull` |
+| `band` / `pull` | `10` / `22` | 直边唇宽 / 采样距离 |
+| `straightBend` / `straightEdgeSigma` | `1.15` / `2.25` | 直边弯曲衰减 / 直边预模糊 |
+| `endBand` / `endPull` | `7.5` / `15` | 圆角端唇宽 / 采样距离 |
+| `endReach` | `22` | 圆角向直边的理论过渡距离；默认 `localEndArc` 下不改变贴图，故面板不开放 |
+| `bend` | `0.85` | 圆角端的弯曲衰减指数 |
+| `blur` | `2.2` | 主玻璃背景柔化；不是边缘高光宽度 |
+| `sigma` / `straightEdgeSigma` | `2.7` / `2.25` | 位移采样前的低频化，压掉细文字抖动 |
+| `saturate` / `glassSaturate` | `1.2` / `1.05` | 边缘采色饱和度 / 玻璃主体饱和度 |
+| `specularSlope` | `1.1` | 折射内容的提亮增益 |
+| `rimSmooth` | `0.6` | 旧独立采集环的位移后柔化；统一边缘链不显示该独立环 |
+| `tint` | `0.18` | 奶白参数；浅色实际不透明度为 `tint × 0.6 = 0.108` |
+| `ringWidth` | `3` | 采集环宽；`0` 会关闭透镜 |
+
+深色主题还会叠加 `DOCK_DARK_LENS_PROFILE`；显式 `darkProfile` 的优先级高于通用 `profile`。
+
+#### 调参并导出
+
+`profile` 叠加在 `variant` 预设之上，`tint` 与 `ringWidth` 是组件独立 props：
+
+```tsx
+<DockGlassSurface
+  tint={0.18}
+  ringWidth={3}
+  profile={{ band: 12, pull: 26, endPull: 18, blur: 2.8 }}
+>
+  <div className="flex items-center justify-between px-2 py-2">{/* tabs */}</div>
+</DockGlassSurface>
+```
+
+演示页的「实时页面折射」面板会直接修改这些 props，导出的 TSX 与分享链接都包含当前值。
+
 | 参数 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `variant` | `'current' \| 'local' \| 'local-tuned' \| 'fine'` | `local-tuned` | 四套光学剖面，线上在用的是 `local-tuned` |
+| `variant` | `'current' \| 'local' \| 'local-tuned' \| 'fine'` | `local-tuned` | 四套光学剖面，默认是 `local-tuned` |
 | `enableLens` | `'auto' \| boolean` | `'auto'` | `true` 强制挂折射链、`false` 只走兼容磨砂 |
+| `profile` | `Partial<LensProfile>` | — | 覆盖光学参数，叠加在 `variant` 上 |
+| `darkProfile` | `Partial<LensProfile>` | 底栏深色预设 | 深色主题下继续叠加 |
+| `radius` | `number \| 'capsule'` | `'capsule'` | 固定圆角或自动胶囊 |
+| `tint` / `tintDarkOpacity` | `number` | `0.18` / `0.06` | 浅色奶白参数 / 深色压暗不透明度 |
+| `ringWidth` | `number` | `3` | 采集环宽，`0` 关闭透镜 |
 
 ### 玻璃面板
 

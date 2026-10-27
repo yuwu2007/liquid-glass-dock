@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from 'react'
 import { Bell, Compass, Copy, Home, Link2, PenLine, RotateCcw, Settings2, User } from 'lucide-react'
 import RefractionImage from './components/liquid/RefractionImage'
 import DockGlassSurface from './components/liquid/DockGlassSurface'
+import { liquidLensCapability } from './components/liquid/buildLiquidLens'
+import { DOCK_TUNED_LOCAL_LENS_PROFILE } from './components/liquid/dockLensProfile'
 
 /**
  * Liquid Glass Playground
@@ -62,8 +64,45 @@ const SHAPES: { id: Shape; label: string }[] = [
   { id: 'square', label: '方块' },
 ]
 
+type Engine = 'image' | 'live'
+
+interface LiveParams {
+  band: number
+  pull: number
+  endBand: number
+  endPull: number
+  straightBend: number
+  straightEdgeSigma: number
+  bend: number
+  blur: number
+  saturate: number
+  glassSaturate: number
+  specularSlope: number
+  sigma: number
+  tint: number
+}
+
+/** 默认预设 local-tuned 的真实值；state 只从这里初始化，不在面板里另抄一份。 */
+const LIVE_DEFAULTS: LiveParams = {
+  band: DOCK_TUNED_LOCAL_LENS_PROFILE.band,
+  pull: DOCK_TUNED_LOCAL_LENS_PROFILE.pull,
+  endBand: DOCK_TUNED_LOCAL_LENS_PROFILE.endBand,
+  endPull: DOCK_TUNED_LOCAL_LENS_PROFILE.endPull,
+  straightBend: DOCK_TUNED_LOCAL_LENS_PROFILE.straightBend,
+  straightEdgeSigma: DOCK_TUNED_LOCAL_LENS_PROFILE.straightEdgeSigma,
+  bend: DOCK_TUNED_LOCAL_LENS_PROFILE.bend,
+  blur: DOCK_TUNED_LOCAL_LENS_PROFILE.blur,
+  saturate: DOCK_TUNED_LOCAL_LENS_PROFILE.saturate,
+  glassSaturate: DOCK_TUNED_LOCAL_LENS_PROFILE.glassSaturate,
+  specularSlope: DOCK_TUNED_LOCAL_LENS_PROFILE.specularSlope,
+  sigma: DOCK_TUNED_LOCAL_LENS_PROFILE.sigma,
+  tint: 0.18,
+}
+
+const liveQueryKey = (key: keyof LiveParams) => `live${key[0].toUpperCase()}${key.slice(1)}`
+
 /** 从分享链接恢复参数（?strength=48&bevel=26&shape=circle...） */
-function readParams(): { params: Params; shape: Shape } {
+function readParams(): { params: Params; shape: Shape; engine: Engine; liveParams: LiveParams } {
   const q = new URLSearchParams(location.search)
   const num = (k: string, fallback: number) => {
     const v = q.get(k)
@@ -72,8 +111,14 @@ function readParams(): { params: Params; shape: Shape } {
     return Number.isFinite(n) ? n : fallback
   }
   const shape = (q.get('shape') as Shape) || 'panel'
+  const liveParams = { ...LIVE_DEFAULTS }
+  ;(Object.keys(liveParams) as (keyof LiveParams)[]).forEach(key => {
+    liveParams[key] = num(liveQueryKey(key), liveParams[key])
+  })
   return {
     shape: SHAPES.some(s => s.id === shape) ? shape : 'panel',
+    engine: q.get('engine') === 'live' ? 'live' : 'image',
+    liveParams,
     params: {
       strength: num('strength', DEFAULTS.strength),
       bevel: num('bevel', DEFAULTS.bevel),
@@ -89,42 +134,22 @@ function readParams(): { params: Params; shape: Shape } {
   }
 }
 
-/** 线上底栏真正在用的材质参数（DockGlassSurface 默认 variant="local-tuned"） */
-const LIVE_PARAMS: [string, string][] = [
-  ['直边唇宽 band', '10px'],
-  ['直边采样 pull', '22px'],
-  ['straightBend / Sigma', '1.15 / 2.25'],
-  ['圆角端 endBand / endPull', '7.5px / 15px'],
-  ['endReach', '22px'],
-  ['模糊 blur', '2.2（兜底 blur(3px) saturate(1.15)）'],
-  ['饱和 saturate / glassSaturate', '1.2 / 1.05'],
-  ['高光 specularSlope / sigma', '1.1 / 2.7'],
-  ['rimSmooth', '0.6'],
-  ['tint / ringWidth', '0.18 / 3px'],
-]
-
-const LIVE_CODE = `import DockGlassSurface from './components/liquid/DockGlassSurface'
-
-{/* 线上底栏同款材质：variant 默认就是 local-tuned。
-    真实折射只在 Chromium 启用，其余内核自动落加厚磨砂。 */}
-<DockGlassSurface>
-  <nav className="flex items-center justify-between px-2 py-2">
-    {/* 首页 / 随笔 / 发现 / 消息 / 我的 */}
-  </nav>
-</DockGlassSurface>`
-
 export default function App() {
   const [initial] = useState(readParams)
   const [params, setParams] = useState<Params>(initial.params)
+  const [liveParams, setLiveParams] = useState<LiveParams>(initial.liveParams)
   const [shape, setShape] = useState<Shape>(initial.shape)
   const [active, setActive] = useState(0)
   const [uiOpen, setUiOpen] = useState(false)
-  const [engine, setEngine] = useState<'image' | 'live'>('image')
+  const [engine, setEngine] = useState<Engine>(initial.engine)
+  const [capability] = useState(liquidLensCapability)
   const [copied, setCopied] = useState('')
   const bgRef = useRef<HTMLImageElement>(null)
 
   const set = <K extends keyof Params>(key: K, value: Params[K]) =>
     setParams(p => ({ ...p, [key]: value }))
+  const setLive = <K extends keyof LiveParams>(key: K, value: LiveParams[K]) =>
+    setLiveParams(p => ({ ...p, [key]: value }))
 
   const radius = shape === 'circle' ? params.size / 2 : shape === 'pill' ? 999 : params.radius
   const isFixed = shape === 'circle' || shape === 'square'
@@ -166,12 +191,51 @@ ${sizing}
 ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
   }, [params, radius, shape, isFixed])
 
+  const liveProfile = useMemo(() => ({
+    band: liveParams.band,
+    pull: liveParams.pull,
+    endBand: liveParams.endBand,
+    endPull: liveParams.endPull,
+    straightBend: liveParams.straightBend,
+    straightEdgeSigma: liveParams.straightEdgeSigma,
+    bend: liveParams.bend,
+    blur: liveParams.blur,
+    saturate: liveParams.saturate,
+    glassSaturate: liveParams.glassSaturate,
+    specularSlope: liveParams.specularSlope,
+    sigma: liveParams.sigma,
+  }), [liveParams])
+
+  const liveCode = useMemo(() => {
+    const lines = Object.entries(liveProfile).map(([key, value]) => `    ${key}: ${value},`).join('\n')
+    return `import DockGlassSurface from './components/liquid/DockGlassSurface'
+
+{/* 实时折射真实页面背景；不支持的内核自动落加厚磨砂。 */}
+<DockGlassSurface
+  tint={${liveParams.tint}}
+  ringWidth={3}
+  profile={{
+${lines}
+  }}
+>
+  <div className="flex items-center justify-between px-2 py-2">
+    {/* 首页 / 随笔 / 发现 / 消息 / 我的 */}
+  </div>
+</DockGlassSurface>`
+  }, [liveProfile, liveParams.tint])
+
   const shareUrl = useMemo(() => {
     const q = new URLSearchParams()
+    q.set('engine', engine)
     q.set('shape', shape)
     Object.entries(params).forEach(([k, v]) => q.set(k, String(v)))
+    if (engine === 'live') {
+      ;(Object.keys(liveParams) as (keyof LiveParams)[]).forEach(key => {
+        q.set(liveQueryKey(key), String(liveParams[key]))
+      })
+    }
     return `${location.origin}${location.pathname}?${q.toString()}`
-  }, [params, shape])
+  }, [params, shape, engine, liveParams])
 
   const copy = async (text: string, tag: string) => {
     try {
@@ -194,9 +258,11 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
         <img ref={bgRef} src={BG} alt="" draggable={false} className="block w-full select-none" />
       </div>
 
+      {!uiOpen && (
       <p className="pointer-events-none absolute left-1/2 top-5 z-10 m-0 -translate-x-1/2 whitespace-nowrap text-[11px] tracking-[0.18em] text-neutral-500">
         上下滑动换背景 · 右上角调参
       </p>
+      )}
 
       <button
         type="button"
@@ -208,19 +274,19 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
       </button>
 
       {uiOpen && (
-        <div className="absolute right-3 top-16 z-20 max-h-[74vh] w-[min(92vw,340px)] overflow-y-auto rounded-2xl bg-white/95 p-4 text-neutral-800 shadow-2xl">
+        <div className="absolute right-3 top-16 z-20 max-h-[74vh] w-[min(92vw,340px)] overflow-y-auto rounded-2xl bg-white p-4 text-neutral-800 shadow-2xl">
           <div className="flex items-center justify-between">
             <p className="m-0 text-[13px] font-bold">液态玻璃调参</p>
             <button
               type="button"
-              onClick={() => setParams({ ...DEFAULTS })}
+              onClick={() => engine === 'live' ? setLiveParams({ ...LIVE_DEFAULTS }) : setParams({ ...DEFAULTS })}
               className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1 text-[11px] text-neutral-500"
             >
               <RotateCcw className="h-3 w-3" /> 重置
             </button>
           </div>
 
-          {/* 引擎：全兼容图片折射 / 线上原版实时折射 */}
+          {/* 引擎：图片背景折射 / 实时页面折射 */}
           <div className="mt-3 grid grid-cols-2 gap-1.5">
             {(['image', 'live'] as const).map(e => (
               <button
@@ -231,7 +297,7 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
                   engine === e ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
                 }`}
               >
-                {e === 'image' ? '全兼容（图片折射）' : '线上原版（实时）'}
+                {e === 'image' ? '图片折射（全兼容）' : '实时页面折射'}
               </button>
             ))}
           </div>
@@ -290,18 +356,36 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
 
           {engine === 'live' && (
             <div className="mt-3">
-              <p className="m-0 text-[11px] leading-4 text-neutral-500">
-                就是线上底栏那套材质（<code>variant="local-tuned"</code>），不是图片折射。
-                真实折射只在 Chromium 启用，iPhone / 微信会落回加厚磨砂——这是它的能力边界，不是参数问题。
+              <div className="rounded-xl bg-neutral-100 p-2.5 text-[11px] leading-[1.65] text-neutral-600">
+                <p className="m-0 font-semibold text-neutral-800">它折的是玻璃后面的真实页面，不是一张图。</p>
+                <p className="m-0 mt-1">
+                  浏览器把背后的文字、照片、视频先作为 backdrop，再经过 SVG 位移贴图弯折；滚动、懒加载或内容变化时会自动跟随，不需要截图或传背景图。
+                </p>
+                <p className="m-0 mt-1">
+                  真折射需要 Chromium 的 <code>backdrop-filter: url()</code>。iPhone、iOS 微信和 Firefox 会自动改为加厚磨砂，参数不会强行突破浏览器限制。
+                </p>
+              </div>
+              <p className={`m-0 mt-2 rounded-lg px-2 py-1.5 text-[11px] ${capability === 'none' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                当前浏览器：{capability === 'none' ? '磨砂兜底（无实时折射）' : capability === 'static' ? '支持实时折射 · 移动端模式' : '支持实时折射 · 桌面模式'}
               </p>
-              <dl className="m-0 mt-2 space-y-1">
-                {LIVE_PARAMS.map(([k, v]) => (
-                  <div key={k} className="flex items-baseline justify-between gap-3 text-[11px]">
-                    <dt className="shrink-0 text-neutral-400">{k}</dt>
-                    <dd className="m-0 text-right font-mono text-neutral-800">{v}</dd>
-                  </div>
-                ))}
-              </dl>
+              <p className="m-0 mt-2 text-[11px] leading-4 text-neutral-500">
+                折射强弱调 <code>pull / endPull</code>，可见折射宽度调 <code>band / endBand</code>。只保留当前 <code>local-tuned</code> 链里实测有效的 13 项；<code>scale</code>、<code>rimSmooth</code>、<code>ringWidth</code> 和本预设下不生效的 <code>endReach</code> 不放滑块。
+              </p>
+              <div className="mt-3 space-y-2.5">
+                <Slider label="直边唇宽 band" value={liveParams.band} min={3} max={30} step={0.5} unit="px" onChange={v => setLive('band', v)} />
+                <Slider label="直边采样 pull" value={liveParams.pull} min={4} max={60} step={1} unit="px" onChange={v => setLive('pull', v)} />
+                <Slider label="直边弯曲 straightBend" value={liveParams.straightBend} min={0.4} max={2.5} step={0.05} onChange={v => setLive('straightBend', v)} />
+                <Slider label="直边预模糊" value={liveParams.straightEdgeSigma} min={0} max={8} step={0.1} unit="px" onChange={v => setLive('straightEdgeSigma', v)} />
+                <Slider label="圆角唇宽 endBand" value={liveParams.endBand} min={3} max={30} step={0.5} unit="px" onChange={v => setLive('endBand', v)} />
+                <Slider label="圆角采样 endPull" value={liveParams.endPull} min={4} max={50} step={1} unit="px" onChange={v => setLive('endPull', v)} />
+                <Slider label="圆角弯曲 bend" value={liveParams.bend} min={0.4} max={2.5} step={0.05} onChange={v => setLive('bend', v)} />
+                <Slider label="背景模糊 blur" value={liveParams.blur} min={0} max={12} step={0.1} unit="px" onChange={v => setLive('blur', v)} />
+                <Slider label="边缘饱和 saturate" value={liveParams.saturate} min={0.5} max={2.5} step={0.05} onChange={v => setLive('saturate', v)} />
+                <Slider label="玻璃饱和 glassSaturate" value={liveParams.glassSaturate} min={0.5} max={2.5} step={0.05} onChange={v => setLive('glassSaturate', v)} />
+                <Slider label="高光增益 specularSlope" value={liveParams.specularSlope} min={0.5} max={2} step={0.05} onChange={v => setLive('specularSlope', v)} />
+                <Slider label="采样预模糊 sigma" value={liveParams.sigma} min={0} max={8} step={0.1} unit="px" onChange={v => setLive('sigma', v)} />
+                <Slider label="奶白 tint" value={liveParams.tint} min={0} max={0.5} step={0.01} format={v => `${v.toFixed(2)}（实际 ${(v * 0.6).toFixed(2)}）`} onChange={v => setLive('tint', v)} />
+              </div>
             </div>
           )}
 
@@ -311,16 +395,15 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
               <p className="m-0 text-[11px] font-semibold text-neutral-400">当前参数的代码</p>
               <button
                 type="button"
-                onClick={() => copy(engine === 'live' ? LIVE_CODE : code, 'code')}
+                onClick={() => copy(engine === 'live' ? liveCode : code, 'code')}
                 className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] text-white"
               >
                 <Copy className="h-3 w-3" /> {copied === 'code' ? '已复制' : '复制'}
               </button>
             </div>
-            <pre className="m-0 mt-2 max-h-44 overflow-auto whitespace-pre text-[10px] leading-4 text-emerald-200">{engine === 'live' ? LIVE_CODE : code}</pre>
+            <pre className="m-0 mt-2 max-h-44 overflow-auto whitespace-pre text-[10px] leading-4 text-emerald-200">{engine === 'live' ? liveCode : code}</pre>
           </div>
 
-          {engine === 'image' && (
           <button
             type="button"
             onClick={() => copy(shareUrl, 'link')}
@@ -328,15 +411,14 @@ ${children ? `>\n${children}\n</RefractionImage>` : '/>'}`
           >
             <Link2 className="h-3.5 w-3.5" /> {copied === 'link' ? '链接已复制' : '复制分享链接（带全部参数）'}
           </button>
-          )}
         </div>
       )}
 
-      {/* 线上原版：实时 backdrop 折射（Chromium），与全兼容版并排可切 */}
+      {/* 实时页面折射：浏览器直接采样真实 backdrop，与图片折射可切换对照 */}
       {engine === 'live' && (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-[max(14px,env(safe-area-inset-bottom))]">
           <div className="pointer-events-auto w-full max-w-[430px] [&_nav]:text-white">
-            <DockGlassSurface enableLens>
+            <DockGlassSurface profile={liveProfile} tint={liveParams.tint}>
               <div className="flex items-center justify-between px-2 py-2">
                 {TABS.map(({ label, Icon }, i) => (
                   <button
