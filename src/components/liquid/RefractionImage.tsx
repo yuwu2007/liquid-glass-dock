@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode, RefObject } from 'react'
+import { observeRefractionBackdrop } from './observeRefractionBackdrop'
 
 /**
  * RefractionImage —— 跨浏览器的"真折射"玻璃（不依赖 backdrop-filter: url()）。
@@ -64,11 +65,9 @@ export default function RefractionImage({
   const clipId = `rfc-${rawId}`
   const [maps, setMaps] = useState<{ disp: string; spec: string; scale: number }>({ disp: '', spec: '', scale: 0 })
   const [box, setBox] = useState({ w: 0, h: 0 })
-  const [photoBox, setPhotoBox] = useState({ x: 0, y: 0, w: 0, h: 0 })
-  const mapKey = useRef('')
-  const buildTimer = useRef<number | null>(null)
+  const imageRef = useRef<SVGImageElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = wrapRef.current
     if (!el) return
     let raf = 0
@@ -79,45 +78,39 @@ export default function RefractionImage({
       const h = Math.round(el.offsetHeight)
       if (w < 40 || h < 40) return
 
-      // 背景偏移每次滚动都要更新；折射贴图只在尺寸/参数变化时重算
-      const a = el.getBoundingClientRect()
-      const b = backdropRef?.current?.getBoundingClientRect()
-      if (b && b.width > 0) {
-        setPhotoBox({ x: b.left - a.left, y: b.top - a.top, w: b.width, h: b.height })
-      } else {
-        setPhotoBox({ x: 0, y: 0, w, h })
-      }
-
-      const bv = Math.max(4, Math.min(bevel ?? Math.min(w, h) / 4, Math.min(w, h) / 2 - 1, 120))
-      const key = `${w}x${h}:${radius}:${bv}:${strength}:${ior}:${specular}:${lightAngle}`
-      if (key !== mapKey.current) {
-        mapKey.current = key
-        setBox({ w, h })
-        // 拖滑杆时一帧可能来几十次：贴图重算做 60ms 防抖，画面上保留上一张
-        if (buildTimer.current) window.clearTimeout(buildTimer.current)
-        buildTimer.current = window.setTimeout(() => {
-          setMaps(buildLensMaps(w, h, Math.min(radius, h / 2), bv, strength, ior, specular, lightAngle))
-        }, 60)
-      }
+      setBox(previous => previous.w === w && previous.h === h ? previous : { w, h })
     }
 
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(measure)
     }
 
-    schedule()
-    const ro = new ResizeObserver(schedule)
-    ro.observe(el)
-    window.addEventListener('scroll', schedule, true)
-    window.addEventListener('resize', schedule)
+    measure()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    ro?.observe(el)
+    window.addEventListener('resize', schedule, { passive: true })
     return () => {
-      ro.disconnect()
-      window.removeEventListener('scroll', schedule, true)
+      ro?.disconnect()
       window.removeEventListener('resize', schedule)
       if (raf) cancelAnimationFrame(raf)
-      if (buildTimer.current) window.clearTimeout(buildTimer.current)
     }
-  }, [radius, bevel, strength, ior, specular, lightAngle, backdropRef])
+  }, [])
+
+  useEffect(() => {
+    const { w, h } = box
+    if (w < 40 || h < 40) return
+    const bv = Math.max(4, Math.min(bevel ?? Math.min(w, h) / 4, Math.min(w, h) / 2 - 1, 120))
+    // Scroll changes image alignment only. Keep lens generation independent of scroll events.
+    const timer = window.setTimeout(() => {
+      setMaps(buildLensMaps(w, h, Math.min(radius, h / 2), bv, strength, ior, specular, lightAngle))
+    }, 60)
+    return () => window.clearTimeout(timer)
+  }, [box, radius, bevel, strength, ior, specular, lightAngle])
+
+  useLayoutEffect(() => {
+    if (!wrapRef.current || !imageRef.current) return
+    return observeRefractionBackdrop(wrapRef.current, imageRef.current, backdropRef?.current)
+  }, [maps.disp, box, backdropRef, src])
 
   const { w, h } = box
   const pad = Math.ceil(Math.max(strength, blur * 3, 8))
@@ -161,11 +154,12 @@ export default function RefractionImage({
 
           <g clipPath={`url(#${clipId})`}>
             <image
+              ref={imageRef}
               href={src}
-              x={photoBox.x}
-              y={photoBox.y}
-              width={photoBox.w || w}
-              height={photoBox.h || h}
+              x={0}
+              y={0}
+              width={w}
+              height={h}
               preserveAspectRatio="xMidYMid slice"
               filter={`url(#${filterId})`}
             />

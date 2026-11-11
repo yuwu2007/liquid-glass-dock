@@ -24,10 +24,10 @@
 | 浏览器 / 环境 | 推荐 | 原因 |
 | --- | --- | --- |
 | Chrome、Edge、Android 浏览器、Android 微信（Chromium） | **实时页面折射 `DockGlassSurface`** | `backdrop-filter: url()` 可用，直接折射真实 DOM，效果最好、性能最省 |
-| iPhone / iPad 的 Safari、iOS 微信、iOS 上的一切浏览器（WebKit） | **全兼容 `RefractionImage`** | WebKit 不支持对 backdrop 挂 SVG 滤镜，实时页面折射在这里只能落回磨砂 |
+| iPhone / iPad 的 Safari、iOS 微信等 WebKit 浏览器 | **图片背景用 `RefractionImage`；真实 DOM 用磨砂兜底** | 当前受影响的 WebKit 不支持对 backdrop 挂 SVG 位移滤镜；图片方案不会自动捕获帖子流 |
 | 桌面 Safari 17.2+ | **全兼容 `RefractionImage`** | 同上；对元素本身应用 `filter: url()` 是支持的 |
 | Firefox | **全兼容 `RefractionImage`** | Firefox 对 backdrop 挂滤镜支持不全，全兼容走 SVG 元素滤镜 |
-| 不支持 SVG 滤镜的老环境 | 磨砂兜底 | `RefractionImage` 自带 `feImage` 探测，失败会去掉滤镜只留柔光；实时页面折射也有 `blur()` 兜底 |
+| 不支持 SVG 滤镜的老环境 | 由宿主提供不透明底色或磨砂兜底 | `RefractionImage` 不做像素级能力探测，不能保证旧内核能绘制 SVG 滤镜；实时页面折射有 `blur()` 兜底 |
 
 ### 按背景类型（这一条比浏览器更关键）
 
@@ -42,6 +42,26 @@
 - **全兼容**：覆盖面广、独立组件可移植；但位移贴图靠主线程逐像素计算，滚动时滤镜要重绘，低端机更吃力，且观感是近似。
 
 实际项目里常见的搭配是：**主 App 底栏用实时页面折射，图片类页面用全兼容**，而不是互相替代。
+
+### 为什么 iPhone 滑动时变淡，停下来才出现？
+
+这不是需要申请的浏览器权限。[WebKit 的公开问题](https://bugs.webkit.org/show_bug.cgi?id=245510)记录了 `backdrop-filter: url()` 对 SVG 位移滤镜的支持缺口，CSS 接受语法也不代表能实际绘制。
+
+本仓库的 `RefractionImage` **不会在滚动时卸载，也没有等待停滚的防抖**。如果业务端采用“截图 → 图片折射”，并在滚动时隐藏截图、停下后重新截图，就会出现这个现象；应检查宿主的截图调度，不能仅通过修改本库的 UA 判断解决。
+
+图片背景的滚动同步采用一帧最多一次的 SVG 坐标更新，不为滚动触发 React 提交，也不重算光学贴图；监听嵌套滚动容器、背景图加载/尺寸变化，以及 `visualViewport` 的滚动和尺寸事件。视口事件覆盖地址栏、键盘变化的对齐触发，但其真实设备表现仍需 iPhone 验证。
+
+不要为了消除停滚等待而逐帧截图整个页面：这会增加主线程和内存开销，而且截图不是实时 DOM。帖子流等动态页面优先保持原生模糊采样；只有背景已知为图片时才用图片折射。当前不承诺 iOS 与 Android 的任意 DOM 实时折射完全一致。
+
+浏览器回归测试：
+
+```bash
+npm ci
+npx playwright install webkit chromium
+npm test
+```
+
+测试使用桌面自动化的 WebKit / Chromium 移动视口，检查持续滚动期间的对齐、贴图复用、React 提交次数、视口事件、卸载清理和演示底栏。**这些测试不能替代 iPhone Safari / 微信真机的滚动帧率和合成效果验收。**
 
 ## 快速开始
 
