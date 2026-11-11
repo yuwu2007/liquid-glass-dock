@@ -66,6 +66,7 @@ export default function RefractionImage({
   const [maps, setMaps] = useState<{ disp: string; spec: string; scale: number }>({ disp: '', spec: '', scale: 0 })
   const [box, setBox] = useState({ w: 0, h: 0 })
   const imageRef = useRef<SVGImageElement>(null)
+  const measuredBox = useRef({ w: 0, h: 0 })
 
   useLayoutEffect(() => {
     const el = wrapRef.current
@@ -78,7 +79,11 @@ export default function RefractionImage({
       const h = Math.round(el.offsetHeight)
       if (w < 40 || h < 40) return
 
-      setBox(previous => previous.w === w && previous.h === h ? previous : { w, h })
+      // Even a same-value React updater can cause one extra commit after another state update.
+      // Skip dispatch altogether for delayed ResizeObserver / visual viewport notifications.
+      if (measuredBox.current.w === w && measuredBox.current.h === h) return
+      measuredBox.current = { w, h }
+      setBox(measuredBox.current)
     }
 
     const schedule = () => {

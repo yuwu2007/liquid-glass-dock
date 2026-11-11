@@ -26,6 +26,7 @@ test('nested scrolling updates the visible lens without React commits or rebuild
     const outer = document.querySelector('#outer')!
     const frames: { error: number; visible: boolean; y: number }[] = []
     for (let i = 0; i < 24; i++) {
+      if (i === 0) window.dispatchEvent(new Event('resize'))
       inner.scrollTop = (i + 1) * 12
       outer.scrollTop = (i + 1) * 2
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
